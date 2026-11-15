@@ -2,15 +2,24 @@
 
 import { useState } from "react";
 import { TargetSelector, UnavailableObservations } from "./target-selector";
-import { ObservationViewer } from "./observation-viewer";
-import { FIRST_LIGHT } from "./targets";
+import { ObservationViewer, type GuideRequest } from "./observation-viewer";
+import { CHALLENGE_TARGETS, FIRST_LIGHT, type Target } from "./targets";
 import { DATASETS } from "./datasets";
 
 const SOURCE_ARCHIVE = "https://irsa.ipac.caltech.edu/Missions/spherex.html";
+const challengeDatasets = CHALLENGE_TARGETS.map(({ id }) => DATASETS[id]);
+const usablePositions = challengeDatasets.filter((dataset) => dataset?.kind === "pair").length;
+const maskedPositions = challengeDatasets.filter((dataset) => dataset?.kind === "field").length;
 
 export default function Home() {
     const [selected, setSelected] = useState(FIRST_LIGHT);
+    const [guideRequest, setGuideRequest] = useState<GuideRequest>();
     const dataset = DATASETS[selected.id];
+
+    function selectTarget(target: Target, guideTrigger?: HTMLButtonElement) {
+        setSelected(target);
+        setGuideRequest(guideTrigger ? { trigger: guideTrigger } : undefined);
+    }
 
     return (
         <main className="min-h-screen bg-[#06111f] text-slate-100">
@@ -50,7 +59,7 @@ export default function Home() {
                     </a>
                 </header>
 
-                <section className="max-w-4xl pb-9 pt-12 sm:pt-16">
+                <section className="max-w-4xl pb-7 pt-10 sm:pt-12">
                     <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300">
                         NASA Space Apps · Planet X and SPHEREx
                     </p>
@@ -62,15 +71,28 @@ export default function Home() {
                         </span>
                     </h1>
 
-                    <p className="mt-5 max-w-3xl text-base leading-8 text-slate-300 sm:text-lg">
-                        Choose a challenge target or enter sky coordinates.
-                        Compare archived SPHEREx exposures or explore a field in IRSA.
+                    <p className="mt-4 max-w-3xl text-base leading-7 text-slate-300 sm:text-lg">
+                        Compare the same sky field at two dates using observations from the NASA/IPAC archive.
                     </p>
+                    <dl aria-label="Official challenge coverage" className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-white/15 bg-white/15 sm:grid-cols-3">
+                        <div className="col-span-2 bg-[#0c1b2e] px-4 py-3 sm:col-span-1">
+                            <dt className="text-sm font-semibold text-white">{usablePositions + maskedPositions} official challenge fields</dt>
+                            <dd className="mt-1 text-xs leading-5 text-slate-300">Two real SPHEREx exposures each</dd>
+                        </div>
+                        <div className="bg-[#0c1b2e] px-4 py-3">
+                            <dt className="text-sm font-semibold text-cyan-200">{usablePositions} usable positions</dt>
+                            <dd className="mt-1 text-xs leading-5 text-slate-300">Pixels at the predicted position pass screening</dd>
+                        </div>
+                        <div className="bg-[#0c1b2e] px-4 py-3">
+                            <dt className="text-sm font-semibold text-amber-200">{maskedPositions} masked positions</dt>
+                            <dd className="mt-1 text-xs leading-5 text-slate-300">Compare the surrounding sky</dd>
+                        </div>
+                    </dl>
                 </section>
 
-                <TargetSelector selected={selected} onSelect={setSelected} />
+                <TargetSelector selected={selected} onSelect={selectTarget} />
                 {dataset && dataset.kind !== "archive"
-                    ? <ObservationViewer key={selected.id} dataset={dataset} target={selected} />
+                    ? <ObservationViewer key={selected.id} dataset={dataset} target={selected} guideRequest={guideRequest} />
                     : <UnavailableObservations target={selected} reason={dataset?.detail} />}
             </div>
         </main>

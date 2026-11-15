@@ -21,8 +21,8 @@ export type ImageDataset = PairDataset | SingleDataset | FieldDataset;
 export type Dataset = ImageDataset | ArchiveDataset;
 
 export const DATASET_LABEL = {
-    pair: "Time comparison",
-    field: "Field comparison · target masked",
+    pair: "Predicted position usable",
+    field: "Predicted position masked",
     single: "Single image",
     archive: "Browse IRSA",
 } as const;

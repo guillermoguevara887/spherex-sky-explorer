@@ -34,7 +34,16 @@ function positionAt2026(
 
 const motionEstimate = "Approximate J2026.0 search position from proper motion. Verify the position at each observation date for analysis.";
 
-export const TARGETS: readonly Target[] = [
+export const EPSILON_INDI_B: Target = {
+    id: "epsilon-indi-b",
+    name: "Epsilon Indi B",
+    ...positionAt2026(331.0438333333, -56.7826944444, 1999.855, 3976, -2500),
+    description: "The nearby brown dwarf pair Epsilon Indi Ba and Bb.",
+    reference: motionEstimate,
+    source: "https://www.aanda.org/articles/aa/pdf/2004/03/aa0292.pdf",
+};
+
+export const CHALLENGE_TARGETS: readonly Target[] = [
     {
         id: "barnards-star",
         name: "Barnard’s Star",
@@ -43,14 +52,7 @@ export const TARGETS: readonly Target[] = [
         reference: motionEstimate,
         source: "https://simbad.u-strasbg.fr/simbad/sim-id?Ident=GJ699",
     },
-    {
-        id: "epsilon-indi-b",
-        name: "Epsilon Indi B",
-        ...positionAt2026(331.0438333333, -56.7826944444, 1999.855, 3976, -2500),
-        description: "The nearby brown dwarf pair Epsilon Indi Ba and Bb.",
-        reference: motionEstimate,
-        source: "https://www.aanda.org/articles/aa/pdf/2004/03/aa0292.pdf",
-    },
+    EPSILON_INDI_B,
     {
         id: "wise-0855",
         name: "WISE 0855−0714",
@@ -77,8 +79,9 @@ export const TARGETS: readonly Target[] = [
         reference: "Nominal J2000 catalog position (AAVSO).",
         source: "https://archive.aavso.org/index.php/aavso-bulletin-coordinates",
     },
-    FIRST_LIGHT,
 ];
+
+export const TARGETS: readonly Target[] = [...CHALLENGE_TARGETS, FIRST_LIGHT];
 
 export function irsaSearchUrl({ ra, dec }: Position) {
     const query = new URLSearchParams({

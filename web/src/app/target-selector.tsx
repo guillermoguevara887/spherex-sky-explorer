@@ -2,10 +2,11 @@
 
 import { useState, type FormEvent } from "react";
 import { DATASETS, DATASET_LABEL } from "./datasets";
-import { FIRST_LIGHT, irsaSearchUrl, TARGETS, type Target } from "./targets";
+import { CHALLENGE_TARGETS, EPSILON_INDI_B, FIRST_LIGHT, irsaSearchUrl, TARGETS, type Target } from "./targets";
 
 const fieldClass = "w-full min-w-0 rounded-lg border border-white/25 bg-[#06111f] px-3 py-2 font-mono text-sm text-white aria-invalid:border-rose-400";
 const linkClass = "text-sm font-medium text-cyan-300 underline underline-offset-4 hover:text-cyan-100";
+const guideNumber = "grid size-6 shrink-0 place-items-center rounded-full bg-cyan-300/15 text-xs font-semibold text-cyan-200";
 
 function parseCoordinate(value: string, min: number, max: number) {
     const text = value.trim();
@@ -20,17 +21,17 @@ function plotPosition({ ra, dec }: Target) {
 
 export function TargetSelector({ selected, onSelect }: {
     selected: Target;
-    onSelect: (target: Target) => void;
+    onSelect: (target: Target, guideTrigger?: HTMLButtonElement) => void;
 }) {
     const [ra, setRa] = useState(String(selected.ra));
     const [dec, setDec] = useState(String(selected.dec));
     const [invalid, setInvalid] = useState({ ra: false, dec: false });
 
-    function choose(target: Target) {
+    function choose(target: Target, guideTrigger?: HTMLButtonElement) {
         setRa(String(target.ra));
         setDec(String(target.dec));
         setInvalid({ ra: false, dec: false });
-        onSelect(target);
+        onSelect(target, guideTrigger);
     }
 
     function explore(event: FormEvent<HTMLFormElement>) {
@@ -56,9 +57,38 @@ export function TargetSelector({ selected, onSelect }: {
 
     return (
         <section aria-labelledby="target-heading" className="mb-6 rounded-2xl border border-cyan-300/20 bg-[#0c1b2e]/95 p-5 sm:p-6">
+            <section aria-labelledby="quick-start-heading" className="mb-5 border-b border-white/10 pb-5">
+                <h2 id="quick-start-heading" className="text-lg font-semibold">Quick start</h2>
+                <ol role="list" className="mt-3 grid gap-4 sm:grid-cols-3">
+                    <li className="flex items-start gap-2.5">
+                        <span aria-hidden="true" className={guideNumber}>1</span>
+                        <div>
+                            <p className="text-sm font-semibold">Choose a field</p>
+                            <button type="button" onClick={(event) => choose(EPSILON_INDI_B, event.currentTarget)}
+                                className="mt-2 rounded-lg bg-cyan-300 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-200 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-cyan-200">
+                                Open Epsilon Indi B
+                            </button>
+                        </div>
+                    </li>
+                    <li className="flex items-start gap-2.5">
+                        <span aria-hidden="true" className={guideNumber}>2</span>
+                        <div>
+                            <p className="text-sm font-semibold">Play blink</p>
+                            <p className="mt-1 text-sm leading-5 text-slate-300">Press Play blink to alternate between the two exposures.</p>
+                        </div>
+                    </li>
+                    <li className="flex items-start gap-2.5">
+                        <span aria-hidden="true" className={guideNumber}>3</span>
+                        <div>
+                            <p className="text-sm font-semibold">Explore the dates</p>
+                            <p className="mt-1 text-sm leading-5 text-slate-300">Choose Earlier or Later to pause on that UTC date.</p>
+                        </div>
+                    </li>
+                </ol>
+            </section>
             <div className="grid gap-6 lg:grid-cols-[1fr_0.85fr]">
                 <div>
-                    <h2 id="target-heading" className="text-lg font-semibold">Example Targets</h2>
+                    <h2 id="target-heading" className="text-lg font-semibold">Explore a field</h2>
                     <div className="mt-3 grid grid-cols-1 gap-2 min-[440px]:grid-cols-2">
                         {TARGETS.map((target) => (
                             <button
@@ -72,7 +102,7 @@ export function TargetSelector({ selected, onSelect }: {
                             >
                                 <span className="block">{target.name}</span>
                                 <span id={`status-${target.id}`} className="mt-1 inline-block rounded border border-white/15 px-1.5 py-0.5 text-[11px] text-slate-300">
-                                    {DATASET_LABEL[DATASETS[target.id]?.kind ?? "archive"]}
+                                    {target.id === FIRST_LIGHT.id ? "First Light demo" : DATASET_LABEL[DATASETS[target.id]?.kind ?? "archive"]}
                                 </span>
                             </button>
                         ))}
@@ -154,7 +184,7 @@ export function TargetSelector({ selected, onSelect }: {
                         </tr>
                     </thead>
                     <tbody>
-                        {TARGETS.filter((target) => target.id !== FIRST_LIGHT.id).map((target) => {
+                        {CHALLENGE_TARGETS.map((target) => {
                             const dataset = DATASETS[target.id];
                             return (
                                 <tr key={target.id} className="border-t border-white/10 align-top">

@@ -36,8 +36,11 @@ type Observations =
     | { kind: "pair"; data: ImagePair; epochs: Epochs }
     | { kind: "single"; data: SingleImage };
 
+export type GuideRequest = { trigger: HTMLButtonElement };
+
 const linkClass = "text-sm text-cyan-300 underline-offset-4 hover:underline";
 const fieldViews = [[false, "Compare surrounding field"], [true, "View single observation"]] as const;
+const dateButtonClass = "rounded-lg border border-white/20 px-3 py-2 text-left text-sm hover:bg-white/10 aria-pressed:border-cyan-300 aria-pressed:bg-cyan-300/15 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-cyan-200";
 
 function SkyCanvas({
     values,
@@ -45,12 +48,14 @@ function SkyCanvas({
     low,
     high,
     name,
+    hiddenFromAT,
 }: {
     values: Array<number | null>;
     shape: [number, number];
     low: number;
     high: number;
     name: string;
+    hiddenFromAT?: boolean;
 }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -94,6 +99,7 @@ function SkyCanvas({
             ref={canvasRef}
             role="img"
             aria-label={name}
+            aria-hidden={hiddenFromAT}
             className="block aspect-square w-full rounded-lg bg-[#0d2138]"
             style={{ imageRendering: "pixelated" }}
         />
@@ -133,10 +139,14 @@ function validate(payload: unknown, dataset: ImageDataset, target: Target): Obse
     throw new Error("The file does not contain the expected observations.");
 }
 
-export function ObservationViewer({ dataset, target }: { dataset: ImageDataset; target: Target }) {
+export function ObservationViewer({ dataset, target, guideRequest }: {
+    dataset: ImageDataset;
+    target: Target;
+    guideRequest?: GuideRequest;
+}) {
     const [showSingle, setShowSingle] = useState(false);
     if (dataset.kind !== "field") {
-        return <ObservationFile dataset={dataset} target={target} />;
+        return <ObservationFile dataset={dataset} target={target} guideRequest={guideRequest} />;
     }
 
     const active = showSingle ? dataset.single : dataset;
@@ -160,7 +170,11 @@ export function ObservationViewer({ dataset, target }: { dataset: ImageDataset; 
     );
 }
 
-function ObservationFile({ dataset, target }: { dataset: ImageDataset; target: Target }) {
+function ObservationFile({ dataset, target, guideRequest }: {
+    dataset: ImageDataset;
+    target: Target;
+    guideRequest?: GuideRequest;
+}) {
     const [result, setResult] = useState<Observations | null>(null);
     const [error, setError] = useState("");
 
@@ -202,7 +216,7 @@ function ObservationFile({ dataset, target }: { dataset: ImageDataset; target: T
         return <SingleViewer data={result.data} dataset={dataset} target={target} />;
     }
     if (result.kind === "pair" && dataset.kind !== "single") {
-        return <PairViewer data={result.data} epochs={result.epochs} dataset={dataset} target={target} />;
+        return <PairViewer data={result.data} epochs={result.epochs} dataset={dataset} target={target} guideRequest={guideRequest} />;
     }
     return null;
 }
@@ -235,7 +249,8 @@ function SingleViewer({ data, dataset, target }: { data: SingleImage; dataset: S
                         <PredictionMarker pixel={epoch.target_pixel} shape={data.shape} />
                     </div>
                     <figcaption className="mt-2 text-xs text-slate-300">
-                        False-color infrared signal. The ring marks the predicted position.
+                        Lighter pixels show stronger displayed infrared signal. Dark navy pixels are masked.
+                        {epoch.target_pixel && " The ring marks the predicted position."}
                         {data.target_pixel_masked && " Quality screening masked the pixel at that position."}
                     </figcaption>
                 </figure>
@@ -259,15 +274,26 @@ function SingleViewer({ data, dataset, target }: { data: SingleImage; dataset: S
     );
 }
 
-function PairViewer({ data, epochs, dataset, target }: {
+function PairViewer({ data, epochs, dataset, target, guideRequest }: {
     data: ImagePair;
     epochs: Epochs;
     dataset: PairDataset | FieldDataset;
     target: Target;
+    guideRequest?: GuideRequest;
 }) {
     const [blend, setBlend] = useState(0);
     const [playing, setPlaying] = useState(false);
     const [showPrediction, setShowPrediction] = useState(true);
+    const viewer = useRef<HTMLElement>(null);
+    const blinkButton = useRef<HTMLButtonElement>(null);
+
+    useEffect(() => {
+        const focused = document.activeElement;
+        if (guideRequest && (focused === guideRequest.trigger || focused === document.body)) {
+            viewer.current?.scrollIntoView({ block: "start" });
+            blinkButton.current?.focus({ preventScroll: true });
+        }
+    }, [guideRequest]);
 
     useEffect(() => {
         if (!playing) return;
@@ -291,6 +317,14 @@ function PairViewer({ data, epochs, dataset, target }: {
     const narrowerBandwidth = Math.min(a.bandwidth_nm, b.bandwidth_nm);
     const bandwidthPercent = Math.round(100 * deltaNm / narrowerBandwidth);
     const isField = dataset.kind === "field";
+    const displayedEpoch = blend === 0 ? `Earlier · ${dateA} UTC · ${a.release}`
+        : blend === 100 ? `Later · ${dateB} UTC · ${b.release}`
+        : `Blend · ${100 - blend}% earlier / ${blend}% later`;
+
+    function showBlend(value: number) {
+        setPlaying(false);
+        setBlend(value);
+    }
 
     return (
         <>
@@ -306,9 +340,9 @@ function PairViewer({ data, epochs, dataset, target }: {
                     note={dataset.kind === "pair" && dataset.legacyEpochs ? "Preliminary quality mask" : "Quality and spectral screening"}
                 />
                 <Metric
-                    label="Spectral separation"
+                    label="Wavelength difference"
                     value={`${deltaNm.toFixed(2)} nm`}
-                    note="Approximate WCS-WAVE"
+                    note="Approximate · from spectral calibration"
                 />
                 <Metric
                     label="Source instrument"
@@ -318,14 +352,14 @@ function PairViewer({ data, epochs, dataset, target }: {
             </section>
 
             <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-                <article className="overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#0c1b2e]/95 shadow-2xl shadow-black/30">
+                <article ref={viewer} className="scroll-mt-4 overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#0c1b2e]/95 shadow-2xl shadow-black/30">
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
                         <div>
                             <h2 className="text-lg font-semibold">
                                 {isField ? "Surrounding field over time" : "Time explorer"}
                             </h2>
                             <p className="text-xs text-slate-400">
-                                Same sky grid · Two observation epochs
+                                {target.name} · Same sky grid at two dates
                             </p>
                         </div>
 
@@ -335,90 +369,65 @@ function PairViewer({ data, epochs, dataset, target }: {
                     </div>
 
                     <div className="p-5 sm:p-7">
-                        <div className="relative mx-auto max-w-[490px] overflow-hidden rounded-xl border border-white/10 bg-[#0a1728] p-2">
-                            <SkyCanvas
-                                values={data.image_a}
-                                shape={data.shape}
-                                low={data.display_min}
-                                high={data.display_max}
-                                name={`SPHEREx infrared intensity, ${labelA}`}
-                            />
+                        <div role="group" aria-label="Observation playback and dates" className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+                            <button ref={blinkButton} type="button" onClick={() => setPlaying((value) => !value)}
+                                className="col-span-2 min-h-11 rounded-lg bg-cyan-300 px-4 py-2.5 text-sm font-semibold text-slate-950 hover:bg-cyan-200 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-cyan-200">
+                                {playing ? "Ⅱ Pause blink" : "▶ Play blink"}
+                            </button>
+                            <button type="button" aria-label={`Earlier image, ${dateA}`} aria-pressed={blend === 0}
+                                onClick={() => showBlend(0)} className={dateButtonClass}>
+                                <span className="block text-xs text-slate-300">Earlier</span>
+                                <time dateTime={dateA} className="tabular-nums">{dateA}</time>
+                            </button>
+                            <button type="button" aria-label={`Later image, ${dateB}`} aria-pressed={blend === 100}
+                                onClick={() => showBlend(100)} className={dateButtonClass}>
+                                <span className="block text-xs text-slate-300">Later</span>
+                                <time dateTime={dateB} className="tabular-nums">{dateB}</time>
+                            </button>
+                        </div>
+                        <p className="mt-2 text-xs leading-5 text-slate-300">Play blink alternates the exposures. Choose a date to pause.</p>
 
-                            <div
-                                className="absolute inset-2"
-                                style={{ opacity: blend / 100 }}
-                            >
+                        <figure className="mx-auto mt-4 max-w-[490px]">
+                            <p className="mb-2 text-xs font-semibold text-slate-200">{displayedEpoch}</p>
+                            <div className="relative overflow-hidden rounded-xl border border-white/10 bg-[#0a1728] p-2">
                                 <SkyCanvas
-                                    values={data.image_b}
+                                    values={data.image_a}
                                     shape={data.shape}
                                     low={data.display_min}
                                     high={data.display_max}
-                                    name={`SPHEREx infrared intensity, ${labelB}`}
+                                    name={`SPHEREx infrared intensity, ${labelA}`}
+                                    hiddenFromAT={blend === 100}
                                 />
-                            </div>
 
-                            {hasPrediction && showPrediction && (
-                                <div className="pointer-events-none absolute inset-2">
-                                    {blend < 100 && <PredictionMarker pixel={a.target_pixel} shape={data.shape} earlier />}
-                                    {blend > 0 && <PredictionMarker pixel={b.target_pixel} shape={data.shape} />}
+                                <div className="absolute inset-2" style={{ opacity: blend / 100 }} aria-hidden={blend === 0}>
+                                    <SkyCanvas
+                                        values={data.image_b}
+                                        shape={data.shape}
+                                        low={data.display_min}
+                                        high={data.display_max}
+                                        name={`SPHEREx infrared intensity, ${labelB}`}
+                                    />
                                 </div>
-                            )}
-                            <div className="absolute left-5 top-5 rounded-md bg-[#06111f]/85 px-3 py-1.5 text-xs font-semibold backdrop-blur">
-                                {blend === 0
-                                    ? labelA
-                                    : blend === 100
-                                        ? labelB
-                                        : `${blend}% blend`}
+
+                                {hasPrediction && showPrediction && (
+                                    <div className="pointer-events-none absolute inset-2">
+                                        {blend < 100 && <PredictionMarker pixel={a.target_pixel} shape={data.shape} earlier />}
+                                        {blend > 0 && <PredictionMarker pixel={b.target_pixel} shape={data.shape} />}
+                                    </div>
+                                )}
                             </div>
-
-                            <div className="absolute bottom-5 right-5 rounded bg-[#06111f]/80 px-2 py-1 text-[10px] uppercase tracking-wider text-slate-300">
-                                False color · infrared signal
-                            </div>
-                        </div>
-
-                        <div className="mt-6 flex flex-wrap items-center gap-4">
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setPlaying((value) => !value)
-                                }
-                                className="rounded-lg bg-cyan-300 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
-                            >
-                                {playing ? "Ⅱ Pause blink" : "▶ Play blink"}
-                            </button>
-
-                            <button
-                                type="button"
-                                aria-label={`Earlier image, ${dateA}`}
-                                aria-pressed={blend === 0}
-                                onClick={() => {
-                                    setPlaying(false);
-                                    setBlend(0);
-                                }}
-                                className="rounded-lg border border-white/20 px-3 py-2.5 text-sm transition hover:bg-white/10"
-                            >
-                                {dateA}
-                            </button>
-
-                            <button
-                                type="button"
-                                aria-label={`Later image, ${dateB}`}
-                                aria-pressed={blend === 100}
-                                onClick={() => {
-                                    setPlaying(false);
-                                    setBlend(100);
-                                }}
-                                className="rounded-lg border border-white/20 px-3 py-2.5 text-sm transition hover:bg-white/10"
-                            >
-                                {dateB}
-                            </button>
-                        </div>
+                            <figcaption className="mt-2 text-xs leading-5 text-slate-300">
+                                <p>In this false-color view, lighter pixels show stronger infrared signal on a shared display scale.
+                                    Dark navy shows masked pixels or gaps in shared coverage.</p>
+                                <p className="mt-1 text-amber-200">Confirming a detection, motion, or a change in brightness requires calibrated measurements.</p>
+                            </figcaption>
+                        </figure>
 
                         {hasPrediction && (
                             <label className="mt-4 flex items-start gap-2 text-xs leading-5 text-slate-300">
                                 <input type="checkbox" className="mt-0.5 accent-cyan-300" checked={showPrediction}
                                     onChange={(event) => setShowPrediction(event.target.checked)} />
-                                Show predicted positions (amber earlier, cyan later). Positions come from astrometry.
+                                Show predicted positions from astrometry (amber earlier, cyan later).
                             </label>
                         )}
                         <div className="mt-6">
@@ -429,20 +438,17 @@ function PairViewer({ data, epochs, dataset, target }: {
 
                             <input
                                 aria-label="Blend the two observing epochs"
+                                aria-valuetext={`${100 - blend}% earlier, ${blend}% later`}
                                 type="range"
                                 min="0"
                                 max="100"
                                 value={blend}
-                                onChange={(event) => {
-                                    setPlaying(false);
-                                    setBlend(Number(event.target.value));
-                                }}
+                                onChange={(event) => showBlend(Number(event.target.value))}
                                 className="w-full accent-cyan-300"
                             />
 
                             <p className="mt-3 text-xs leading-5 text-slate-400">
-                                Drag to blend or press Play blink to alternate
-                                epochs. Both images use a shared display scale.
+                                Drag the slider or use the arrow keys to blend the two exposures.
                             </p>
                         </div>
                     </div>
@@ -455,8 +461,8 @@ function PairViewer({ data, epochs, dataset, target }: {
                         </h2>
 
                         <div className="grid grid-cols-2 gap-4">
-                            <ObservationCard epoch={a} values={data.image_a} data={data} />
-                            <ObservationCard epoch={b} values={data.image_b} data={data} />
+                            <ObservationCard label="Earlier" epoch={a} values={data.image_a} data={data} />
+                            <ObservationCard label="Later" epoch={b} values={data.image_b} data={data} />
                         </div>
 
                         <div className="mt-5 border-t border-white/10 pt-4 text-sm text-slate-300">
@@ -488,8 +494,6 @@ function PairViewer({ data, epochs, dataset, target }: {
                         </div>
 
                         <p className="text-sm leading-6 text-slate-300">
-                            These frames support visual exploration only. Confirming
-                            motion or variability requires calibrated measurements.
                             The effective wavelengths at the sampled positions are about
                             {" "}{deltaNm.toFixed(2)} nm apart ({bandwidthPercent}% of the
                             narrower {narrowerBandwidth.toFixed(2)} nm nominal bandwidth).
@@ -600,17 +604,22 @@ function Metric({
 }
 
 function ObservationCard({
+    label,
     epoch,
     values,
     data,
 }: {
+    label: string;
     epoch: Epoch;
     values: Array<number | null>;
     data: ImagePair;
 }) {
     return (
         <div className="min-w-0">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-cyan-200">
+            <p className="text-xs font-semibold text-cyan-200">
+                {label} · <time dateTime={epoch.date_utc.slice(0, 10)}>{epoch.date_utc.slice(0, 10)}</time> UTC
+            </p>
+            <p className="mb-2 text-xs text-slate-300">
                 {epoch.release} · {epoch.detector}
             </p>
 
@@ -626,7 +635,7 @@ function ObservationCard({
                 {epoch.id}
             </p>
             <p className="mt-1 text-xs text-slate-200">
-                {epoch.date_utc.slice(0, 10)} UTC<br />λ ≈ {epoch.wavelength_um.toFixed(6)} µm<br />
+                λ ≈ {epoch.wavelength_um.toFixed(6)} µm<br />
                 Width ≈ {epoch.bandwidth_nm.toFixed(2)} nm
             </p>
             {epoch.target_position && (
