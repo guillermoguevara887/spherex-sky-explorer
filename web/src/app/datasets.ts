@@ -6,15 +6,39 @@ export type Epoch = {
     source: string;
     wavelength_um: number;
     bandwidth_nm: number;
+    target_position?: { ra: number; dec: number };
+    target_pixel?: [number, number];
+    target_flags?: number;
 };
 
 export type Epochs = { a: Epoch; b: Epoch };
 
-type Dataset = { path: string; legacyEpochs?: Epochs };
+export type PairDataset = { kind: "pair"; path: string; detail: string; legacyEpochs?: Epochs };
+export type SingleDataset = { kind: "single"; path: string; detail: string };
+type ArchiveDataset = { kind: "archive"; detail: string };
+export type Dataset = PairDataset | SingleDataset | ArchiveDataset;
+export type ImageDataset = PairDataset | SingleDataset;
+
+export const DATASET_LABEL = {
+    pair: "Time comparison",
+    single: "Single image",
+    archive: "Browse IRSA",
+} as const;
 
 export const DATASETS: Readonly<Partial<Record<string, Dataset>>> = {
-    "epsilon-indi-b": { path: "/data/epsilon_indi_b.json" },
+    "barnards-star": { kind: "single", path: "/data/barnards_star.json",
+        detail: "The target pixel failed quality checks in all 53 screened exposures. The single image shows the surrounding field with detector overflow and charge spillover masked." },
+    "wise-0855": { kind: "pair", path: "/data/wise_0855.json",
+        detail: "D6 · DR1 · 2025-05-05 / 2026-05-11" },
+    "rw-aurigae": { kind: "pair", path: "/data/rw_aurigae.json",
+        detail: "D1 · DR1 · 2025-09-03 / 2026-03-04" },
+    "r-draconis": { kind: "single", path: "/data/r_draconis.json",
+        detail: "All 59 screened exposures had detector overflow and charge spillover at the predicted position. The single image shows the surrounding field." },
+    "epsilon-indi-b": { kind: "pair", path: "/data/epsilon_indi_b.json",
+        detail: "D2 · DR1 and QR3 · 2025–2026" },
     "first-light": {
+        kind: "pair",
+        detail: "D1 · DR1 and QR3 · demo field",
         path: "/data/first_light.json",
         legacyEpochs: {
             a: {
@@ -38,4 +62,3 @@ export const DATASETS: Readonly<Partial<Record<string, Dataset>>> = {
         },
     },
 };
-export type { Dataset };

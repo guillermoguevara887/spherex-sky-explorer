@@ -1,0 +1,439 @@
+{
+  "as_of_local_date": "2026-11-14",
+  "timezone": "America/Los_Angeles",
+  "archive": "NASA/IPAC IRSA SPHEREx Level 2 SIA2",
+  "scope": "Bounded screening of D1-D6 across multiple observing seasons. Counts are image rows, not detections.",
+  "raw_fits_location": "Ignored local pipeline/output cache. Source URLs for published previews are included.",
+  "targets": [
+    {
+      "target": "barnards-star",
+      "query_position": [
+        269.44627,
+        4.7682
+      ],
+      "radius_arcsec": 30.0,
+      "astrometry_source": "https://simbad.u-strasbg.fr/simbad/sim-id?Ident=GJ699",
+      "predicted_footprints": 359,
+      "fits_read": 53,
+      "detectors": {
+        "D1": {
+          "footprints": 60,
+          "downloaded": 11,
+          "nominal_target": 0,
+          "overflow_only_target": 0,
+          "rejected_target": 11
+        },
+        "D2": {
+          "footprints": 61,
+          "downloaded": 9,
+          "nominal_target": 0,
+          "overflow_only_target": 0,
+          "rejected_target": 9
+        },
+        "D3": {
+          "footprints": 59,
+          "downloaded": 11,
+          "nominal_target": 0,
+          "overflow_only_target": 0,
+          "rejected_target": 11
+        },
+        "D4": {
+          "footprints": 59,
+          "downloaded": 11,
+          "nominal_target": 0,
+          "overflow_only_target": 0,
+          "rejected_target": 11
+        },
+        "D5": {
+          "footprints": 61,
+          "downloaded": 6,
+          "nominal_target": 0,
+          "overflow_only_target": 0,
+          "rejected_target": 6
+        },
+        "D6": {
+          "footprints": 59,
+          "downloaded": 5,
+          "nominal_target": 0,
+          "overflow_only_target": 0,
+          "rejected_target": 5
+        }
+      },
+      "rejections": {
+        "Target pixel: overflow with additional flags": 52,
+        "Target pixel: other quality flags": 1,
+        "Pair includes an unusable target pixel": 204
+      },
+      "target_flags": {
+        "69206018": 11,
+        "69206021": 1,
+        "69206022": 39,
+        "69206023": 2
+      },
+      "result": "single-image",
+      "epoch": {
+        "release": "DR1",
+        "id": "2026W12_2A_0520_3",
+        "detector": "D6",
+        "date_utc": "2026-03-22T08:48:38.251",
+        "source": "https://irsa.ipac.caltech.edu/ibe/data/spherex/dr1/level2/2026W12_2A/l2b-v27-2026-235/6/level2_2026W12_2A_0520_3D6_spx_l2b-v27-2026-235.fits",
+        "wavelength_um": 4.894227835750412,
+        "bandwidth_nm": 37.335635356793105,
+        "target_position": {
+          "ra": 269.44637091985845,
+          "dec": 4.768840026792264
+        },
+        "target_pixel": [
+          5.300491679994309,
+          6.128401518507056
+        ],
+        "target_flags": 69206018,
+        "finast": 0
+      },
+      "usable_pixels": 136,
+      "target_pixel_masked": true,
+      "sia_rows": {
+        "dr1": 240,
+        "qr3": 124
+      },
+      "planned_limit": 36,
+      "planned_cutouts_missing": 6,
+      "follow_up_limit": 24,
+      "follow_up_cutouts_missing": 1,
+      "cached_beyond_plan": 0
+    },
+    {
+      "target": "wise-0855",
+      "query_position": [
+        133.75951,
+        -7.2423
+      ],
+      "radius_arcsec": 30.0,
+      "astrometry_source": "https://www.aanda.org/articles/aa/pdf/2016/08/aa28662-16.pdf",
+      "predicted_footprints": 258,
+      "fits_read": 31,
+      "detectors": {
+        "D1": {
+          "footprints": 36,
+          "downloaded": 6,
+          "nominal_target": 6,
+          "overflow_only_target": 0,
+          "rejected_target": 0
+        },
+        "D2": {
+          "footprints": 48,
+          "downloaded": 6,
+          "nominal_target": 6,
+          "overflow_only_target": 0,
+          "rejected_target": 0
+        },
+        "D3": {
+          "footprints": 45,
+          "downloaded": 8,
+          "nominal_target": 8,
+          "overflow_only_target": 0,
+          "rejected_target": 0
+        },
+        "D4": {
+          "footprints": 36,
+          "downloaded": 4,
+          "nominal_target": 4,
+          "overflow_only_target": 0,
+          "rejected_target": 0
+        },
+        "D5": {
+          "footprints": 48,
+          "downloaded": 3,
+          "nominal_target": 2,
+          "overflow_only_target": 0,
+          "rejected_target": 1
+        },
+        "D6": {
+          "footprints": 45,
+          "downloaded": 4,
+          "nominal_target": 4,
+          "overflow_only_target": 0,
+          "rejected_target": 0
+        }
+      },
+      "rejections": {
+        "Target pixel: other quality flags": 1,
+        "Pair exceeds target wavelength/bandwidth tolerance": 50,
+        "Pair includes an unusable target pixel": 1
+      },
+      "target_flags": {
+        "2097152": 30,
+        "270532608": 1
+      },
+      "result": "time-comparison",
+      "epochs": {
+        "a": {
+          "release": "DR1",
+          "id": "2025W19_1B_0116_1",
+          "detector": "D6",
+          "date_utc": "2025-05-05T16:48:02.459",
+          "source": "https://irsa.ipac.caltech.edu/ibe/data/spherex/dr1/level2/2025W19_1B/l2b-v27-2026-197/6/level2_2025W19_1B_0116_1D6_spx_l2b-v27-2026-197.fits",
+          "wavelength_um": 4.967369671240826,
+          "bandwidth_nm": 37.18671813063738,
+          "target_position": {
+            "ra": 133.76099720498078,
+            "dec": -7.24238977695049
+          },
+          "target_pixel": [
+            6.792374008598941,
+            5.190269682592595
+          ],
+          "target_flags": 2097152,
+          "finast": 0
+        },
+        "b": {
+          "release": "DR1",
+          "id": "2026W20_1A_0033_1",
+          "detector": "D6",
+          "date_utc": "2026-05-11T02:18:44.662",
+          "source": "https://irsa.ipac.caltech.edu/ibe/data/spherex/dr1/level2/2026W20_1A/l2b-v27-2026-246/6/level2_2026W20_1A_0033_1D6_spx_l2b-v27-2026-246.fits",
+          "wavelength_um": 4.967257076294833,
+          "bandwidth_nm": 37.18678591784787,
+          "target_position": {
+            "ra": 133.7586814022072,
+            "dec": -7.242199283285736
+          },
+          "target_pixel": [
+            5.468019408070235,
+            5.506815165412851
+          ],
+          "target_flags": 2097152,
+          "finast": 0
+        }
+      },
+      "overlap_pixels": 121,
+      "usable_pixels": 117,
+      "overflow_pixels": 0,
+      "sia_rows": {
+        "dr1": 258,
+        "qr3": 0
+      },
+      "planned_limit": 36,
+      "planned_cutouts_missing": 5,
+      "follow_up_limit": 0,
+      "follow_up_cutouts_missing": 0,
+      "cached_beyond_plan": 0
+    },
+    {
+      "target": "rw-aurigae",
+      "query_position": [
+        76.95654,
+        30.40144
+      ],
+      "radius_arcsec": 30.0,
+      "astrometry_source": "https://vsx.aavso.org/index.php?revid=418953&view=detail.top",
+      "predicted_footprints": 335,
+      "fits_read": 72,
+      "detectors": {
+        "D1": {
+          "footprints": 56,
+          "downloaded": 36,
+          "nominal_target": 8,
+          "overflow_only_target": 26,
+          "rejected_target": 2
+        },
+        "D2": {
+          "footprints": 55,
+          "downloaded": 9,
+          "nominal_target": 0,
+          "overflow_only_target": 2,
+          "rejected_target": 7
+        },
+        "D3": {
+          "footprints": 56,
+          "downloaded": 5,
+          "nominal_target": 0,
+          "overflow_only_target": 0,
+          "rejected_target": 5
+        },
+        "D4": {
+          "footprints": 56,
+          "downloaded": 9,
+          "nominal_target": 0,
+          "overflow_only_target": 0,
+          "rejected_target": 9
+        },
+        "D5": {
+          "footprints": 56,
+          "downloaded": 7,
+          "nominal_target": 0,
+          "overflow_only_target": 4,
+          "rejected_target": 3
+        },
+        "D6": {
+          "footprints": 56,
+          "downloaded": 6,
+          "nominal_target": 0,
+          "overflow_only_target": 3,
+          "rejected_target": 3
+        }
+      },
+      "rejections": {
+        "Target pixel: other quality flags": 3,
+        "Target pixel: overflow with additional flags": 26,
+        "Pair exceeds target wavelength/bandwidth tolerance": 488,
+        "Pair includes an unusable target pixel": 157
+      },
+      "target_flags": {
+        "2097152": 8,
+        "2097154": 35,
+        "69206018": 24,
+        "69206021": 3,
+        "69206023": 2
+      },
+      "result": "time-comparison",
+      "epochs": {
+        "a": {
+          "release": "DR1",
+          "id": "2025W36_1A_0606_2",
+          "detector": "D1",
+          "date_utc": "2025-09-03T17:24:32.428",
+          "source": "https://irsa.ipac.caltech.edu/ibe/data/spherex/dr1/level2/2025W36_1A/l2b-v27-2026-232/1/level2_2025W36_1A_0606_2D1_spx_l2b-v27-2026-232.fits",
+          "wavelength_um": 0.8790067564482548,
+          "bandwidth_nm": 22.287517640105964,
+          "target_position": {
+            "ra": 76.95654,
+            "dec": 30.40144
+          },
+          "target_pixel": [
+            5.550984965126287,
+            5.221789830193087
+          ],
+          "target_flags": 2097152,
+          "finast": 0
+        },
+        "b": {
+          "release": "DR1",
+          "id": "2026W10_1A_0445_2",
+          "detector": "D1",
+          "date_utc": "2026-03-04T07:56:46.935",
+          "source": "https://irsa.ipac.caltech.edu/ibe/data/spherex/dr1/level2/2026W10_1A/l2b-v27-2026-229/1/level2_2026W10_1A_0445_2D1_spx_l2b-v27-2026-229.fits",
+          "wavelength_um": 0.8788082209066302,
+          "bandwidth_nm": 21.88714259658042,
+          "target_position": {
+            "ra": 76.95654,
+            "dec": 30.40144
+          },
+          "target_pixel": [
+            5.550984965126287,
+            5.221789830193087
+          ],
+          "target_flags": 2097152,
+          "finast": 0
+        }
+      },
+      "overlap_pixels": 121,
+      "usable_pixels": 119,
+      "overflow_pixels": 0,
+      "sia_rows": {
+        "dr1": 226,
+        "qr3": 110
+      },
+      "planned_limit": 36,
+      "planned_cutouts_missing": 1,
+      "follow_up_limit": 24,
+      "follow_up_cutouts_missing": 1,
+      "cached_beyond_plan": 14
+    },
+    {
+      "target": "r-draconis",
+      "query_position": [
+        248.16761,
+        66.75498
+      ],
+      "radius_arcsec": 30.0,
+      "astrometry_source": "https://archive.aavso.org/index.php/aavso-bulletin-coordinates",
+      "predicted_footprints": 494,
+      "fits_read": 59,
+      "detectors": {
+        "D1": {
+          "footprints": 79,
+          "downloaded": 23,
+          "nominal_target": 0,
+          "overflow_only_target": 0,
+          "rejected_target": 23
+        },
+        "D2": {
+          "footprints": 77,
+          "downloaded": 17,
+          "nominal_target": 0,
+          "overflow_only_target": 0,
+          "rejected_target": 17
+        },
+        "D3": {
+          "footprints": 90,
+          "downloaded": 6,
+          "nominal_target": 0,
+          "overflow_only_target": 0,
+          "rejected_target": 6
+        },
+        "D4": {
+          "footprints": 79,
+          "downloaded": 6,
+          "nominal_target": 0,
+          "overflow_only_target": 0,
+          "rejected_target": 6
+        },
+        "D5": {
+          "footprints": 78,
+          "downloaded": 3,
+          "nominal_target": 0,
+          "overflow_only_target": 0,
+          "rejected_target": 3
+        },
+        "D6": {
+          "footprints": 91,
+          "downloaded": 4,
+          "nominal_target": 0,
+          "overflow_only_target": 0,
+          "rejected_target": 4
+        }
+      },
+      "rejections": {
+        "Target pixel: overflow with additional flags": 59,
+        "Pair includes an unusable target pixel": 399
+      },
+      "target_flags": {
+        "69206018": 2,
+        "69206022": 56,
+        "69206150": 1
+      },
+      "result": "single-image",
+      "epoch": {
+        "release": "DR1",
+        "id": "2025W42_2A_0244_1",
+        "detector": "D1",
+        "date_utc": "2025-10-17T14:44:53.465",
+        "source": "https://irsa.ipac.caltech.edu/ibe/data/spherex/dr1/level2/2025W42_2A/l2b-v27-2026-243/1/level2_2025W42_2A_0244_1D1_spx_l2b-v27-2026-243.fits",
+        "wavelength_um": 0.7808164794060437,
+        "bandwidth_nm": 18.609942346876807,
+        "target_position": {
+          "ra": 248.16761,
+          "dec": 66.75498
+        },
+        "target_pixel": [
+          5.993999154875778,
+          5.743574826993086
+        ],
+        "target_flags": 69206018,
+        "finast": 0
+      },
+      "usable_pixels": 120,
+      "target_pixel_masked": true,
+      "sia_rows": {
+        "dr1": 422,
+        "qr3": 126
+      },
+      "planned_limit": 36,
+      "planned_cutouts_missing": 0,
+      "follow_up_limit": 24,
+      "follow_up_cutouts_missing": 1,
+      "cached_beyond_plan": 0
+    }
+  ]
+}

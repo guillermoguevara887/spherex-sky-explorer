@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { irsaSearchUrl, TARGETS, type Target } from "./targets";
+import { DATASETS, DATASET_LABEL } from "./datasets";
+import { FIRST_LIGHT, irsaSearchUrl, TARGETS, type Target } from "./targets";
 
 const fieldClass = "w-full min-w-0 rounded-lg border border-white/25 bg-[#06111f] px-3 py-2 font-mono text-sm text-white aria-invalid:border-rose-400";
 const linkClass = "text-sm font-medium text-cyan-300 underline underline-offset-4 hover:text-cyan-100";
@@ -63,11 +64,16 @@ export function TargetSelector({ selected, onSelect }: {
                             <button
                                 type="button"
                                 key={target.id}
+                                aria-label={target.name}
+                                aria-describedby={`status-${target.id}`}
                                 aria-pressed={selected.id === target.id}
                                 onClick={() => choose(target)}
                                 className="rounded-lg border border-white/20 px-3 py-2.5 text-left text-sm text-slate-200 hover:bg-white/10 aria-pressed:border-cyan-300 aria-pressed:bg-cyan-300/15 aria-pressed:font-semibold aria-pressed:text-cyan-100"
                             >
-                                {target.name}
+                                <span className="block">{target.name}</span>
+                                <span id={`status-${target.id}`} className="mt-1 inline-block rounded border border-white/15 px-1.5 py-0.5 text-[11px] text-slate-300">
+                                    {DATASET_LABEL[DATASETS[target.id]?.kind ?? "archive"]}
+                                </span>
                             </button>
                         ))}
                     </div>
@@ -138,17 +144,41 @@ export function TargetSelector({ selected, onSelect }: {
                     {selected.source && <a href={selected.source} className={linkClass} target="_blank" rel="noreferrer">Position reference ↗</a>}
                 </figure>
             </div>
+            <details className="mt-4 border-t border-white/10 pt-3 text-sm">
+                <summary className="cursor-pointer font-medium text-cyan-200">Coverage by challenge target</summary>
+                <table className="mt-3 w-full text-left text-xs sm:text-sm">
+                    <thead className="text-slate-300">
+                        <tr>
+                            <th scope="col" className="px-2 py-1.5">Target</th>
+                            <th scope="col" className="px-2 py-1.5">Available view</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {TARGETS.filter((target) => target.id !== FIRST_LIGHT.id).map((target) => {
+                            const dataset = DATASETS[target.id];
+                            return (
+                                <tr key={target.id} className="border-t border-white/10 align-top">
+                                    <th scope="row" className="px-2 py-1.5 font-medium text-slate-200">{target.name}</th>
+                                    <td className="px-2 py-1.5">
+                                        <p className="text-cyan-200">{DATASET_LABEL[dataset?.kind ?? "archive"]}</p>
+                                        {dataset && <p className="text-slate-300">{dataset.detail}</p>}
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </details>
         </section>
     );
 }
 
-export function UnavailableObservations({ target }: { target: Target }) {
+export function UnavailableObservations({ target, reason }: { target: Target; reason?: string }) {
     return (
         <section aria-labelledby="coverage-heading" className="rounded-2xl border border-white/15 bg-[#0c1b2e]/95 p-5 sm:p-6">
             <h2 id="coverage-heading" className="text-lg font-semibold">No verified time-series image pair available for this target yet</h2>
             <p className="mt-2 text-sm leading-6 text-slate-300">
-                A time comparison requires observations of the same sky region at different dates,
-                with comparable spectral coverage and usable, aligned pixels.
+                {reason ?? "This position has not been processed. A time comparison requires observations of the same sky region at different dates, with comparable spectral coverage and usable, aligned pixels."}
             </p>
             <a href={irsaSearchUrl(target)} className={`mt-4 inline-block ${linkClass}`} target="_blank" rel="noreferrer">
                 Search IRSA around this position (2′ radius) ↗

@@ -16,6 +16,7 @@ import json
 import ssl
 import time
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
@@ -88,11 +89,19 @@ def inspect(path: Path, target=TARGET):
         return wavelength_um, bandwidth_um, flags, clean
 
 
+def is_fits_file(path: Path):
+    """Reject partial files and HTTP error pages before caching a cutout."""
+    if not path.is_file() or not path.stat().st_size or path.stat().st_size % 2880:
+        return False
+    with path.open("rb") as stream:
+        return stream.read(9) == b"SIMPLE  ="
+
+
 def download_cutout(
     url: str, destination: Path, *, ra=RA_DEG, dec=DEC_DEG, size="1.2arcmin"
 ):
     """Download a small FITS cutout, keeping existing successful downloads."""
-    if destination.is_file() and destination.stat().st_size > 0:
+    if is_fits_file(destination):
         return True
 
     if urlsplit(url).netloc != "irsa.ipac.caltech.edu" or not url.startswith("https://"):
@@ -104,9 +113,8 @@ def download_cutout(
         "size": size,
     })
     cutout_url = url + separator + query
-    partial = destination.with_name(destination.name + ".part")
-
     for attempt in (1, 2):
+        partial = None
         try:
             request = Request(
                 cutout_url,
@@ -114,21 +122,26 @@ def download_cutout(
             )
             with urlopen(request, timeout=20, context=SSL_CONTEXT) as response:
                 total = 0
-                with partial.open("wb") as f:
+                with NamedTemporaryFile(dir=destination.parent, suffix=".part", delete=False) as f:
+                    partial = Path(f.name)
                     while chunk := response.read(1024 * 1024):
                         total += len(chunk)
                         if total > 8 * 1024 * 1024:
                             raise OSError("Cutout exceeded the 8 MiB limit")
                         f.write(chunk)
-            if partial.stat().st_size == 0:
-                raise OSError("Empty download")
+            if not is_fits_file(partial):
+                raise OSError("Response is not a complete FITS file")
             partial.replace(destination)
             return True
         except (HTTPError, URLError, TimeoutError, OSError) as error:
             print(f"  Download failed ({attempt}/2): {error}")
-            partial.unlink(missing_ok=True)
+            if isinstance(error, HTTPError) and error.code not in (429, 500, 502, 503, 504):
+                break
             if attempt == 1:
                 time.sleep(3)
+        finally:
+            if partial:
+                partial.unlink(missing_ok=True)
     return False
 
 

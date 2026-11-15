@@ -17,6 +17,7 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+from xml.etree import ElementTree
 
 import certifi
 from astropy.io.votable import parse_single_table
@@ -87,18 +88,36 @@ def parse_record(row, collection):
         "em_min_m": low,
         "em_max_m": high,
         "url": url,
+        "region": str(get_value(row, "s_region") or ""),
     }
 
 
-def fetch_collection(collection, ra, dec, radius_arcsec):
-    """Consulta IRSA; si falla, reutiliza una caché de la misma posición."""
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+def metadata_cache(collection, ra, dec, radius_arcsec):
     signature = {"ra": ra, "dec": dec, "radius_arcsec": radius_arcsec}
     if (ra, dec, radius_arcsec) == (RA_DEG, DEC_DEG, RADIUS_ARCSEC):
-        cache_path = CACHE_DIR / f"{collection}_metadata.json"
-    else:
-        key = sha256(json.dumps(signature, sort_keys=True).encode()).hexdigest()[:16]
-        cache_path = CACHE_DIR / f"{collection}_{key}_metadata.json"
+        return CACHE_DIR / f"{collection}_metadata.json", signature
+    key = sha256(json.dumps(signature, sort_keys=True).encode()).hexdigest()[:16]
+    return CACHE_DIR / f"{collection}_{key}_metadata.json", signature
+
+
+def read_cache(path, signature):
+    if path.exists():
+        try:
+            saved = json.loads(path.read_text(encoding="utf-8"))
+            if saved.get("query") == signature and isinstance(saved.get("records"), list):
+                return saved["records"]
+        except (OSError, ValueError, TypeError) as error:
+            print(f"  Error de caché: {error}")
+    return None
+
+
+def fetch_collection(collection, ra, dec, radius_arcsec, *, prefer_cache=False):
+    """Consulta IRSA y distingue una búsqueda vacía de una consulta fallida."""
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    cache_path, signature = metadata_cache(collection, ra, dec, radius_arcsec)
+    saved = read_cache(cache_path, signature)
+    if prefer_cache and saved is not None and all(record.get("region") for record in saved):
+        return saved
 
     # SIA2 utiliza grados; conservar los decimales evita el redondeo no deseado.
     radius_deg = radius_arcsec / 3600.0
@@ -111,8 +130,15 @@ def fetch_collection(collection, ra, dec, radius_arcsec):
                 query_url, headers={"User-Agent": "SPHEREx-Sky-Explorer/0.1"}
             )
             with urlopen(request, timeout=15, context=SSL_CONTEXT) as response:
-                raw = response.read()
+                raw = response.read(12 * 1024 * 1024 + 1)
+            if len(raw) > 12 * 1024 * 1024:
+                raise ValueError("La respuesta SIA superó 12 MiB")
 
+            root = ElementTree.fromstring(raw)
+            statuses = [node.get("value") for node in root.iter()
+                        if node.tag.rsplit("}", 1)[-1] == "INFO" and node.get("name") == "QUERY_STATUS"]
+            if any(status != "OK" for status in statuses):
+                raise ValueError(f"Respuesta SIA incompleta o fallida: {statuses}")
             table = parse_single_table(BytesIO(raw)).to_table(use_names_over_ids=True)
             required = {"t_min", "t_max", "em_min", "em_max", "energy_bandpassname", "access_url"}
             missing = required - set(table.colnames)
@@ -135,16 +161,15 @@ def fetch_collection(collection, ra, dec, radius_arcsec):
                     print(f"    {column}: {sample[column]!r}")
                 raise ValueError("No se pudo validar ninguna fila; no se sobrescribe la caché.")
 
-            if records:
-                cache_path.write_text(
-                    json.dumps({"query": signature, "records": records}, indent=2),
-                    encoding="utf-8",
-                )
+            cache_path.write_text(
+                json.dumps({"query": signature, "records": records}, indent=2),
+                encoding="utf-8",
+            )
             return records
 
         except (HTTPError, URLError, TimeoutError, OSError) as error:
             print(f"  Error de conexión (intento {attempt}/2): {error}")
-            retryable = not isinstance(error, HTTPError) or error.code in (502, 503, 504)
+            retryable = not isinstance(error, HTTPError) or error.code in (429, 500, 502, 503, 504)
             if attempt == 1 and retryable:
                 time.sleep(2)
                 continue
@@ -153,19 +178,12 @@ def fetch_collection(collection, ra, dec, radius_arcsec):
             print(f"  La respuesta no se pudo interpretar: {error}")
             break
 
-    if cache_path.exists():
-        try:
-            saved = json.loads(cache_path.read_text(encoding="utf-8"))
-            if (saved.get("query") == signature and
-                    isinstance(saved.get("records"), list) and
-                    saved["records"]):
-                print(f"  Caché local: {len(saved['records'])} archivos")
-                return saved["records"]
-        except (OSError, ValueError, TypeError) as error:
-            print(f"  Error de caché: {error}")
+    if saved is not None:
+        print(f"  Caché local: {len(saved)} archivos")
+        return saved
 
     print("  Colección no disponible en esta ejecución")
-    return []
+    return None
 
 
 def utc_date(mjd):
