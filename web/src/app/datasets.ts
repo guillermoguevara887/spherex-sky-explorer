@@ -15,25 +15,35 @@ export type Epochs = { a: Epoch; b: Epoch };
 
 export type PairDataset = { kind: "pair"; path: string; detail: string; legacyEpochs?: Epochs };
 export type SingleDataset = { kind: "single"; path: string; detail: string };
+export type FieldDataset = { kind: "field"; path: string; detail: string; single: SingleDataset };
 type ArchiveDataset = { kind: "archive"; detail: string };
-export type Dataset = PairDataset | SingleDataset | ArchiveDataset;
-export type ImageDataset = PairDataset | SingleDataset;
+export type ImageDataset = PairDataset | SingleDataset | FieldDataset;
+export type Dataset = ImageDataset | ArchiveDataset;
 
 export const DATASET_LABEL = {
     pair: "Time comparison",
+    field: "Field comparison · target masked",
     single: "Single image",
     archive: "Browse IRSA",
 } as const;
 
 export const DATASETS: Readonly<Partial<Record<string, Dataset>>> = {
-    "barnards-star": { kind: "single", path: "/data/barnards_star.json",
-        detail: "The target pixel failed quality checks in all 53 screened exposures. The single image shows the surrounding field with detector overflow and charge spillover masked." },
+    "barnards-star": {
+        kind: "field", path: "/data/barnards_star_field.json",
+        detail: "Detector flags affected the star’s predicted position in the screened exposures. Compare the surrounding sky with that region masked in both frames.",
+        single: { kind: "single", path: "/data/barnards_star.json",
+            detail: "This exposure shows the surrounding sky with detector overflow and charge spillover masked." },
+    },
     "wise-0855": { kind: "pair", path: "/data/wise_0855.json",
         detail: "D6 · DR1 · 2025-05-05 / 2026-05-11" },
     "rw-aurigae": { kind: "pair", path: "/data/rw_aurigae.json",
         detail: "D1 · DR1 · 2025-09-03 / 2026-03-04" },
-    "r-draconis": { kind: "single", path: "/data/r_draconis.json",
-        detail: "All 59 screened exposures had detector overflow and charge spillover at the predicted position. The single image shows the surrounding field." },
+    "r-draconis": {
+        kind: "field", path: "/data/r_draconis_field.json",
+        detail: "Detector flags affected the star’s predicted position in the screened wide and deep exposures. Compare the surrounding sky with that region masked in both frames.",
+        single: { kind: "single", path: "/data/r_draconis.json",
+            detail: "This exposure shows the surrounding sky with detector overflow and charge spillover masked." },
+    },
     "epsilon-indi-b": { kind: "pair", path: "/data/epsilon_indi_b.json",
         detail: "D2 · DR1 and QR3 · 2025–2026" },
     "first-light": {

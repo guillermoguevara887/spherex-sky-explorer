@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { type Epoch, type Epochs, type ImageDataset, type PairDataset, type SingleDataset } from "./datasets";
+import { type Epoch, type Epochs, type FieldDataset, type ImageDataset, type PairDataset, type SingleDataset } from "./datasets";
 import { irsaSearchUrl, type Target } from "./targets";
 
 type ImageScale = {
@@ -20,6 +20,7 @@ type ImagePair = ImageScale & {
     method?: string;
     warnings?: string[];
     astrometry_source?: string;
+    field_mask_radius_arcsec?: number;
 };
 
 type SingleImage = ImageScale & {
@@ -36,6 +37,7 @@ type Observations =
     | { kind: "single"; data: SingleImage };
 
 const linkClass = "text-sm text-cyan-300 underline-offset-4 hover:underline";
+const fieldViews = [[false, "Compare surrounding field"], [true, "View single observation"]] as const;
 
 function SkyCanvas({
     values,
@@ -121,7 +123,9 @@ function validate(payload: unknown, dataset: ImageDataset, target: Target): Obse
         return { kind: "single", data: data as SingleImage };
     }
     const epochs = legacy ?? data.epochs;
-    if (dataset.kind === "pair" && epochs?.a && epochs.b &&
+    const maskRadius = data.field_mask_radius_arcsec;
+    const hasFieldMask = typeof maskRadius === "number" && Number.isFinite(maskRadius) && maskRadius > 0;
+    if (dataset.kind !== "single" && hasFieldMask === (dataset.kind === "field") && epochs?.a && epochs.b &&
         Array.isArray(data.image_a) && Array.isArray(data.image_b) &&
         data.image_a.length === pixels && data.image_b.length === pixels) {
         return { kind: "pair", data: data as ImagePair, epochs };
@@ -130,6 +134,33 @@ function validate(payload: unknown, dataset: ImageDataset, target: Target): Obse
 }
 
 export function ObservationViewer({ dataset, target }: { dataset: ImageDataset; target: Target }) {
+    const [showSingle, setShowSingle] = useState(false);
+    if (dataset.kind !== "field") {
+        return <ObservationFile dataset={dataset} target={target} />;
+    }
+
+    const active = showSingle ? dataset.single : dataset;
+    return (
+        <>
+            <section className="mb-5 rounded-xl border border-amber-400/25 bg-amber-300/[0.06] p-4 sm:p-5" aria-label="Available observations">
+                <p className="font-semibold text-amber-200">The target is masked in the two-epoch view.</p>
+                <p className="mt-1 text-sm text-slate-300">{dataset.detail}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                    {fieldViews.map(([single, label]) => (
+                        <button key={label} type="button" aria-pressed={showSingle === single}
+                            onClick={() => setShowSingle(single)}
+                            className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10 aria-pressed:border-cyan-300 aria-pressed:bg-cyan-300/15">
+                            {label}
+                        </button>
+                    ))}
+                </div>
+            </section>
+            <ObservationFile key={active.path} dataset={active} target={target} />
+        </>
+    );
+}
+
+function ObservationFile({ dataset, target }: { dataset: ImageDataset; target: Target }) {
     const [result, setResult] = useState<Observations | null>(null);
     const [error, setError] = useState("");
 
@@ -170,7 +201,7 @@ export function ObservationViewer({ dataset, target }: { dataset: ImageDataset; 
     if (result.kind === "single" && dataset.kind === "single") {
         return <SingleViewer data={result.data} dataset={dataset} target={target} />;
     }
-    if (result.kind === "pair" && dataset.kind === "pair") {
+    if (result.kind === "pair" && dataset.kind !== "single") {
         return <PairViewer data={result.data} epochs={result.epochs} dataset={dataset} target={target} />;
     }
     return null;
@@ -194,7 +225,7 @@ function SingleViewer({ data, dataset, target }: { data: SingleImage; dataset: S
     const epoch = data.epoch;
     return (
         <article className="rounded-2xl border border-cyan-300/20 bg-[#0c1b2e]/95 p-5 sm:p-6">
-            <h2 className="text-lg font-semibold">Single observation only</h2>
+            <h2 className="text-lg font-semibold">Single observation</h2>
             <p className="mt-2 text-sm text-slate-300">{dataset.detail}</p>
             <div className="mt-5 grid gap-6 sm:grid-cols-[minmax(0,23rem)_1fr]">
                 <figure>
@@ -231,7 +262,7 @@ function SingleViewer({ data, dataset, target }: { data: SingleImage; dataset: S
 function PairViewer({ data, epochs, dataset, target }: {
     data: ImagePair;
     epochs: Epochs;
-    dataset: PairDataset;
+    dataset: PairDataset | FieldDataset;
     target: Target;
 }) {
     const [blend, setBlend] = useState(0);
@@ -259,6 +290,7 @@ function PairViewer({ data, epochs, dataset, target }: {
     const deltaNm = Math.abs(a.wavelength_um - b.wavelength_um) * 1000;
     const narrowerBandwidth = Math.min(a.bandwidth_nm, b.bandwidth_nm);
     const bandwidthPercent = Math.round(100 * deltaNm / narrowerBandwidth);
+    const isField = dataset.kind === "field";
 
     return (
         <>
@@ -271,7 +303,7 @@ function PairViewer({ data, epochs, dataset, target }: {
                 <Metric
                     label="Usable samples"
                     value={`${usablePixels}/${totalPixels}`}
-                    note={dataset.legacyEpochs ? "Preliminary quality mask" : "Quality and spectral screening"}
+                    note={dataset.kind === "pair" && dataset.legacyEpochs ? "Preliminary quality mask" : "Quality and spectral screening"}
                 />
                 <Metric
                     label="Spectral separation"
@@ -290,7 +322,7 @@ function PairViewer({ data, epochs, dataset, target }: {
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
                         <div>
                             <h2 className="text-lg font-semibold">
-                                Time explorer
+                                {isField ? "Surrounding field over time" : "Time explorer"}
                             </h2>
                             <p className="text-xs text-slate-400">
                                 Same sky grid · Two observation epochs
@@ -298,7 +330,7 @@ function PairViewer({ data, epochs, dataset, target }: {
                         </div>
 
                         <span className="rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-200">
-                            Exploratory comparison
+                            {isField ? "Target masked" : "Exploratory comparison"}
                         </span>
                     </div>
 
@@ -464,6 +496,12 @@ function PairViewer({ data, epochs, dataset, target }: {
                             Alignment uses nearest-neighbor sampling. Detector response,
                             calibration, and background may contribute to visible differences.
                         </p>
+                        {isField && (
+                            <p className="mt-3 text-sm leading-6 text-amber-200">
+                                Both frames mask flagged pixels and all samples within {data.field_mask_radius_arcsec}″
+                                of either predicted position. The rings mark the excluded target locations.
+                            </p>
+                        )}
                         {data.warnings?.map((warning) => (
                             <p key={warning} className="mt-3 text-sm leading-6 text-amber-200">{warning}</p>
                         ))}

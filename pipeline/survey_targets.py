@@ -14,8 +14,8 @@ from astropy.time import Time
 import numpy as np
 
 from build_target_pair import (
-    MAX_BANDWIDTH_FRACTION, MAX_BANDWIDTH_RATIO, OVERFLOW_FLAG, SOURCE_FLAG,
-    build_single, compare_observations, read_observation, spectral_distance,
+    FIELD_CUTOUT_SIZE, MAX_BANDWIDTH_FRACTION, MAX_BANDWIDTH_RATIO, OVERFLOW_FLAG, SOURCE_FLAG,
+    build_single, cached_cutout, compare_observations, read_observation, spectral_distance,
 )
 from find_d1_match import download_cutout
 from query_irsa import COLLECTIONS, fetch_collection
@@ -24,12 +24,15 @@ from target_astrometry import TARGETS
 ROOT = Path(__file__).resolve().parent
 MIN_GAP_DAYS = 1
 QUERY_RADIUS_ARCSEC = 30.0
+DEEP_COLLECTIONS = tuple(f"{collection}_deep" for collection in COLLECTIONS)
+MAX_FIELD_CUTOUTS = 12
 
 
 @dataclass(frozen=True)
 class Candidate:
     url: str
     release: str
+    survey: str
     detector: str
     date_mjd: float
     x: float
@@ -63,7 +66,7 @@ def footprint_position(region, coord):
     return float(x), float(y)
 
 
-def collect(target, *, refresh=False):
+def collect(target, *, refresh=False, include_deep=False):
     candidates = []
     totals = {}
     seen = set()
@@ -72,12 +75,15 @@ def collect(target, *, refresh=False):
     def position(mjd):
         return target.at(Time(mjd, format="mjd", scale="utc"))
 
-    for collection in COLLECTIONS:
+    collections = COLLECTIONS + DEEP_COLLECTIONS if include_deep else COLLECTIONS
+    for collection in collections:
+        survey = collection.removeprefix("spherex_")
+        release = survey.removesuffix("_deep")
         records = fetch_collection(collection, *target.center, QUERY_RADIUS_ARCSEC, prefer_cache=not refresh)
         if records is None:
-            raise RuntimeError(f"{collection} inventory unavailable")
-        release = collection.removeprefix("spherex_")
-        totals[release] = len(records)
+            totals[survey] = None
+            continue
+        totals[survey] = len(records)
         for record in records:
             url = record["url"]
             detector = record["band"].removeprefix("SPHEREx-")
@@ -99,7 +105,7 @@ def collect(target, *, refresh=False):
             x, y = xy
             if 0 <= x <= 1 and 0 <= y <= 1:
                 seen.add(identity)
-                candidates.append(Candidate(url, release, detector, date_mjd, x, y))
+                candidates.append(Candidate(url, release, survey, detector, date_mjd, x, y))
     return candidates, totals
 
 
@@ -145,6 +151,29 @@ def approximate_mismatch(pair, slug):
         # Wavelength increases toward the near edge of the detector's y axis.
         value += 0.02 * max(a.y, b.y)
     return value
+
+
+def channel_sample(candidates):
+    """Interleave detector, survey, season and filter positions for bright cores."""
+    groups = {}
+    for candidate in sorted(candidates, key=lambda c: (c.survey, c.detector, c.date_mjd)):
+        date = Time(candidate.date_mjd, format="mjd", scale="utc").isot
+        season = (int(date[5:7]) - 1) // 3
+        channel = min(3, int(candidate.y * 4))
+        key = (candidate.survey, candidate.detector, date[:4], season, channel)
+        groups.setdefault(key, []).append(candidate)
+    for items in groups.values():
+        items.sort(key=lambda c: -min(c.x, 1 - c.x, c.y, 1 - c.y))
+    # Give each detector in each collection a turn before taking another
+    # exposure from any of them.
+    lanes = {}
+    for key, items in groups.items():
+        lanes.setdefault(key[:2], []).append(items)
+    queues = [
+        [c for row in zip_longest(*groups_in_lane) for c in row if c is not None]
+        for groups_in_lane in lanes.values()
+    ]
+    return [c for row in zip_longest(*queues) for c in row if c is not None]
 
 
 def refinement(candidates, initial, slug, limit):
@@ -203,17 +232,29 @@ def main():
     parser.add_argument("--target", action="append", choices=TARGETS)
     parser.add_argument("--evaluate-only", action="store_true", help="Use existing FITS only")
     parser.add_argument("--refresh-metadata", action="store_true")
+    parser.add_argument("--include-deep", action="store_true", help="Also query the DR1 and QR3 deep fields")
+    parser.add_argument("--sample-channels", action="store_true",
+                        help="Spread the budget over deep/wide surveys, seasons and detector filter positions")
+    parser.add_argument("--compare-field", action="store_true",
+                        help="Try a surrounding-field comparison when the target core fails screening")
     parser.add_argument("--follow-up", type=int, default=0, help="Additional candidates guided by measured WCS-WAVE")
     parser.add_argument("--limit", type=int, default=36, help="Maximum cutouts per target")
     args = parser.parse_args()
-    if args.limit < 1 or args.follow_up < 0 or args.limit + args.follow_up > 72:
-        parser.error("The combined limit must be between 1 and 72 cutouts per target")
+    if args.limit < 1 or args.follow_up < 0 or args.limit + args.follow_up > 192:
+        parser.error("The combined limit must be between 1 and 192 cutouts per target")
     slugs = list(dict.fromkeys(args.target or TARGETS))
     inventories = {}
     queues = []
     for slug in slugs:
-        candidates, totals = collect(TARGETS[slug], refresh=args.refresh_metadata)
-        queue = plan(candidates, slug)[:args.limit]
+        candidates, totals = collect(TARGETS[slug], refresh=args.refresh_metadata, include_deep=args.include_deep)
+        if args.sample_channels:
+            # Keep a seed of likely pairs while exploring the broader sample.
+            seed = plan(candidates, slug)[:min(36, args.limit // 3)]
+            seen = {c.url for c in seed}
+            ranked = seed + [c for c in channel_sample(candidates) if c.url not in seen]
+        else:
+            ranked = plan(candidates, slug)
+        queue = ranked[:args.limit]
         print(f"{slug}: SIA rows {totals}, {len(candidates)} predicted footprints, {len(queue)} cutouts", flush=True)
         inventories[slug] = candidates, totals
         queues.append([(slug, c) for c in queue])
@@ -234,18 +275,23 @@ def main():
     directory.mkdir(parents=True, exist_ok=True)
     for slug, queue in zip(slugs, queues):
         candidates, totals = inventories[slug]
-        payload, report = evaluate(slug, candidates)
+        payload, field, report = evaluate(slug, candidates, compare_field=args.compare_field,
+                                          allow_download=not args.evaluate_only)
         report["sia_rows"] = totals
+        report["inventory_complete"] = all(count is not None for count in totals.values())
+        if all(count is None for count in totals.values()):
+            report["result"] = "inventory-unavailable"
         report["planned_limit"] = args.limit + args.follow_up
         report["planned_cutouts_missing"] = sum(not cutout_path(*job).exists() for job in queue)
         (directory / f"{slug}-screening.json").write_text(
             json.dumps(report, indent=2, allow_nan=False) + "\n", encoding="utf-8",
         )
-        preview_path = directory / f"{slug}.json"
-        if payload is None:
-            preview_path.unlink(missing_ok=True)
-        else:
-            preview_path.write_text(json.dumps(payload, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+        for name, preview in ((slug, payload), (f"{slug}-field", field)):
+            path = directory / f"{name}.json"
+            if preview is None:
+                path.unlink(missing_ok=True)
+            else:
+                path.write_text(json.dumps(preview, indent=2, allow_nan=False) + "\n", encoding="utf-8")
         print(slug, report["result"], report["fits_read"], report["rejections"], flush=True)
 
 
@@ -263,7 +309,7 @@ def download(task):
     return success
 
 
-def evaluate(slug, candidates):
+def evaluate(slug, candidates, *, compare_field=False, allow_download=False):
     astrometry = TARGETS[slug]
     center = SkyCoord(*astrometry.center, unit="deg")
     detector_counts = {
@@ -272,6 +318,9 @@ def evaluate(slug, candidates):
     }
     rejected = Counter()
     target_flags = Counter()
+    flags_by_release = {}
+    fits_by_collection = Counter()
+    spectral_samples = {}
     observations = []
     for candidate in candidates:
         counts = detector_counts[candidate.detector]
@@ -289,6 +338,9 @@ def evaluate(slug, candidates):
             continue
         observations.append(observation)
         target_flags[observation.target_flags] += 1
+        flags_by_release.setdefault(candidate.release, Counter())[observation.target_flags] += 1
+        fits_by_collection[candidate.survey] += 1
+        spectral_samples.setdefault(candidate.detector, []).append(observation.info["wavelength_um"])
         if observation.usable_at_target(observation.usable()):
             counts["nominal_target"] += 1
         elif observation.usable_at_target(observation.usable(allow_overflow=True)):
@@ -307,6 +359,11 @@ def evaluate(slug, candidates):
         "predicted_footprints": len(candidates), "fits_read": len(observations),
         "detectors": detector_counts, "rejections": rejected,
         "target_flags": dict(sorted(target_flags.items())), "result": "browse-irsa",
+        "target_flags_by_release": flags_by_release,
+        "fits_by_collection": fits_by_collection,
+        "observed_wavelength_um_by_detector": {
+            detector: [min(values), max(values)] for detector, values in sorted(spectral_samples.items())
+        },
     }
     pairs = ranked_compatible_pairs(slug, observations, rejected)
     for overflow, a, b in pairs:
@@ -325,7 +382,12 @@ def evaluate(slug, candidates):
             "usable_pixels": payload["usable_pixels"],
             "overflow_pixels": payload["overflow_pixels"],
         })
-        return payload, report
+        return payload, None, report
+
+    field = None
+    if compare_field:
+        field, field_report = compare_surroundings(slug, observations, center, allow_download=allow_download)
+        report.update(field_report)
 
     def single_score(observation):
         good = observation.usable()
@@ -342,11 +404,57 @@ def evaluate(slug, candidates):
             "usable_pixels": payload["usable_pixels"],
             "target_pixel_masked": payload["target_pixel_masked"],
         })
-        return payload, report
-    return None, report
+        return payload, field, report
+    return None, field, report
 
 
-def ranked_compatible_pairs(slug, observations, rejected):
+def compare_surroundings(slug, observations, center, *, allow_download):
+    """Use small cutouts to select pairs and show a wider area around masked cores."""
+    astrometry = TARGETS[slug]
+    ra, dec = astrometry.center
+    rejected = Counter()
+    attempted = set()
+
+    @lru_cache(maxsize=None)
+    def wider_observation(url):
+        path = cached_cutout(url, ra, dec, size=FIELD_CUTOUT_SIZE)
+        if not path.is_file():
+            if not allow_download or len(attempted) >= MAX_FIELD_CUTOUTS:
+                return None
+            attempted.add(url)
+            if not download_cutout(url, path, ra=ra, dec=dec, size=FIELD_CUTOUT_SIZE):
+                rejected["Wider FITS cutout unavailable"] += 1
+                return None
+        try:
+            return read_observation(path, url, astrometry.at)
+        except (KeyError, OSError, ValueError) as error:
+            rejected[str(error).splitlines()[0]] += 1
+            return None
+
+    field = None
+    report = {"field_comparison_rejections": rejected}
+    for _, a, b in ranked_compatible_pairs(slug, observations, rejected, field_only=True):
+        wide_a = wider_observation(a.info["source"])
+        wide_b = wider_observation(b.info["source"])
+        if wide_a is None or wide_b is None:
+            continue
+        try:
+            field = compare_observations(wide_a, wide_b, center, astrometry=astrometry, field_only=True)
+        except ValueError as error:
+            reason = str(error)
+            if reason.startswith("Only "):
+                reason = "Insufficient unmasked spatial/spectral overlap outside the target mask"
+            rejected[reason] += 1
+            continue
+        report["field_comparison"] = {key: field[key] for key in (
+            "epochs", "shape", "overlap_pixels", "usable_pixels", "field_mask_radius_arcsec",
+        )}
+        break
+    report["field_cutouts_requested"] = len(attempted)
+    return field, report
+
+
+def ranked_compatible_pairs(slug, observations, rejected, *, field_only=False):
     pairs = []
     quality = {o.info["source"]: (
         o.usable_at_target(o.usable()), o.usable_at_target(o.usable(allow_overflow=True)),
@@ -359,14 +467,16 @@ def ranked_compatible_pairs(slug, observations, rejected):
             continue
         a_nominal, a_overflow = quality[a.info["source"]]
         b_nominal, b_overflow = quality[b.info["source"]]
-        if not (a_overflow and b_overflow):
+        if field_only and a_nominal and b_nominal:
+            continue
+        if not field_only and not (a_overflow and b_overflow):
             rejected["Pair includes an unusable target pixel"] += 1
             continue
         _, fraction, width_ratio = spectral_distance(a, b)
         if fraction > MAX_BANDWIDTH_FRACTION or width_ratio > MAX_BANDWIDTH_RATIO:
             rejected["Pair exceeds target wavelength/bandwidth tolerance"] += 1
             continue
-        overflow = not (a_nominal and b_nominal)
+        overflow = not field_only and not (a_nominal and b_nominal)
         priority = -int(a.info["detector"][1:]) if slug == "wise-0855" else 0
         key = (overflow, priority, time_gap < 60, fraction, -time_gap)
         pairs.append((key, overflow, a, b))
