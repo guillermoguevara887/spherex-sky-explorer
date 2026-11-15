@@ -1,24 +1,147 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
+  --background: #080d1b;
+  --foreground: #f1f3ff;
+  --panel: #18233e;
+  --recess: #10182c;
+  --line: #374768;
+  --control-line: #64769e;
+  --muted: #c1cbe3;
+  --faint: #a5b2ce;
+  --iris: #a78bfa;
+  --infrared: #ffb86b;
+  --interactive: #67e8f9;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-panel: var(--panel);
+  --color-recess: var(--recess);
+  --color-line: var(--line);
+  --color-control-line: var(--control-line);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-iris: var(--iris);
+  --color-infrared: var(--infrared);
+  --color-interactive: var(--interactive);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: Inter, system-ui, sans-serif;
+  }
+
+  :where(a, button, input, summary):focus-visible {
+    outline: 2px solid var(--interactive);
+    outline-offset: 3px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  .observatory {
+    background: radial-gradient(ellipse 36rem 20rem at 83% 7rem, #a78bfa1a, transparent);
+  }
+
+  .observatory-title {
+    font-size: clamp(2rem, 4.3vw, 3.75rem);
+    line-height: 1.04;
+    letter-spacing: -0.055em;
+    text-wrap: balance;
+  }
+
+  .observatory-title span {
+    color: #c3adff;
+  }
+
+  .observatory-orbits {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: -1;
+    width: min(100%, 38rem);
+    height: 100%;
+    opacity: 0.36;
+    pointer-events: none;
+    mask-image: linear-gradient(90deg, transparent, black 38%);
+  }
+
+  .observatory-panel {
+    background-color: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 1rem;
+  }
+
+  .observatory-action {
+    min-height: 2.75rem;
+    border-radius: 0.5rem;
+    background-color: var(--interactive);
+    color: var(--background);
+    font-weight: 650;
+  }
+
+  .observatory-action:hover {
+    background-color: #a5f3fc;
+  }
+
+  .observatory-option {
+    min-height: 2.75rem;
+    border: 1px solid var(--control-line);
+    border-radius: 0.5rem;
+  }
+
+  .observatory-option:hover {
+    background-color: #ffffff0a;
+  }
+
+  .observatory-option[aria-pressed="true"] {
+    border-color: var(--interactive);
+    background-color: #67e8f91a;
+  }
+
+  .observatory-target {
+    border-inline-start: 2px solid transparent;
+    border-radius: 0.35rem;
+  }
+
+  .observatory-target:hover {
+    background-color: #ffffff09;
+  }
+
+  .observatory-target[aria-pressed="true"] {
+    border-inline-start-color: var(--interactive);
+    background-color: #67e8f917;
+  }
+
+  .observatory-plot {
+    background-image:
+      linear-gradient(to right, #a78bfa33 1px, transparent 1px),
+      linear-gradient(to bottom, #a78bfa33 1px, transparent 1px);
+    background-size: 25% 50%;
+  }
+
+  .observatory-frame {
+    box-shadow: 0 0 0 3px #a78bfa10, 0 16px 32px #080d1b44;
+  }
+
+  .observatory-image-width {
+    max-width: 33rem;
+  }
+}
+
+@media (min-width: 80rem) {
+  .observatory-image-width {
+    max-width: clamp(22rem, 100svh - 29rem, 33rem);
+  }
+}
+
+@media (forced-colors: active) {
+  .observatory-target[aria-pressed="true"],
+  .observatory-option[aria-pressed="true"] {
+    border-color: Highlight;
+  }
 }

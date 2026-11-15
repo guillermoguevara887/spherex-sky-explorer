@@ -38,9 +38,9 @@ type Observations =
 
 export type GuideRequest = { trigger: HTMLButtonElement };
 
-const linkClass = "text-sm text-cyan-300 underline-offset-4 hover:underline";
+const linkClass = "text-sm text-interactive underline-offset-4 hover:underline";
 const fieldViews = [[false, "Compare surrounding field"], [true, "View single observation"]] as const;
-const dateButtonClass = "rounded-lg border border-white/20 px-3 py-2 text-left text-sm hover:bg-white/10 aria-pressed:border-cyan-300 aria-pressed:bg-cyan-300/15 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-cyan-200";
+const dateButtonClass = "observatory-option px-3 py-2 text-left text-sm";
 
 function SkyCanvas({
     values,
@@ -152,14 +152,14 @@ export function ObservationViewer({ dataset, target, guideRequest }: {
     const active = showSingle ? dataset.single : dataset;
     return (
         <>
-            <section className="mb-5 rounded-xl border border-amber-400/25 bg-amber-300/[0.06] p-4 sm:p-5" aria-label="Available observations">
-                <p className="font-semibold text-amber-200">The target is masked in the two-epoch view.</p>
-                <p className="mt-1 text-sm text-slate-300">{dataset.detail}</p>
-                <div className="mt-4 flex flex-wrap gap-2">
+            <section className="mb-3 rounded-r-lg border-s-2 border-infrared bg-infrared/8 px-4 py-3.5 sm:px-5" aria-label="Available observations">
+                <p className="font-semibold text-infrared">The target is masked in the two-epoch view.</p>
+                <p className="mt-1 text-sm text-muted">{dataset.detail}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
                     {fieldViews.map(([single, label]) => (
                         <button key={label} type="button" aria-pressed={showSingle === single}
                             onClick={() => setShowSingle(single)}
-                            className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10 aria-pressed:border-cyan-300 aria-pressed:bg-cyan-300/15">
+                            className="observatory-option px-3 py-2 text-sm">
                             {label}
                         </button>
                     ))}
@@ -206,7 +206,7 @@ function ObservationFile({ dataset, target, guideRequest }: {
     }
     if (!result) {
         return (
-            <div role="status" className="rounded-xl border border-white/10 bg-white/5 p-10 text-center text-slate-300">
+            <div role="status" className="observatory-panel p-8 text-center text-muted">
                 Loading observations for {target.name}…
             </div>
         );
@@ -238,23 +238,23 @@ function PredictionMarker({ pixel, shape, earlier = false }: {
 function SingleViewer({ data, dataset, target }: { data: SingleImage; dataset: SingleDataset; target: Target }) {
     const epoch = data.epoch;
     return (
-        <article className="rounded-2xl border border-cyan-300/20 bg-[#0c1b2e]/95 p-5 sm:p-6">
-            <h2 className="text-lg font-semibold">Single observation</h2>
-            <p className="mt-2 text-sm text-slate-300">{dataset.detail}</p>
-            <div className="mt-5 grid gap-6 sm:grid-cols-[minmax(0,23rem)_1fr]">
+        <article className="observatory-panel p-4 sm:p-6">
+            <h2 className="text-xl font-semibold tracking-tight">Single observation</h2>
+            <p className="mt-2 text-sm text-muted">{dataset.detail}</p>
+            <div className="mt-5 grid gap-6 sm:grid-cols-[minmax(0,23rem)_minmax(0,1fr)]">
                 <figure>
-                    <div className="relative">
+                    <div className="observatory-frame relative rounded-lg">
                         <SkyCanvas values={data.image} shape={data.shape} low={data.display_min}
                             high={data.display_max} name={`SPHEREx Level 2 field for ${target.name}`} />
                         <PredictionMarker pixel={epoch.target_pixel} shape={data.shape} />
                     </div>
-                    <figcaption className="mt-2 text-xs text-slate-300">
+                    <figcaption className="mt-3 text-xs leading-5 text-muted">
                         Lighter pixels show stronger displayed infrared signal. Dark navy pixels are masked.
                         {epoch.target_pixel && " The ring marks the predicted position."}
                         {data.target_pixel_masked && " Quality screening masked the pixel at that position."}
                     </figcaption>
                 </figure>
-                <div className="space-y-3 text-sm text-slate-200">
+                <div className="space-y-3 text-sm text-muted">
                     <p>{epoch.release} · {epoch.detector} · {epoch.date_utc.slice(0, 10)} UTC</p>
                     <p className="break-all font-mono text-xs">{epoch.id}</p>
                     <p>λ ≈ {epoch.wavelength_um.toFixed(6)} µm · bandwidth {epoch.bandwidth_nm.toFixed(2)} nm</p>
@@ -328,68 +328,45 @@ function PairViewer({ data, epochs, dataset, target, guideRequest }: {
 
     return (
         <>
-            <section className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-                <Metric
-                    label="Common sky positions"
-                    value={`${data.overlap_pixels}/${totalPixels}`}
-                    note="WCS overlap"
-                />
-                <Metric
-                    label="Usable samples"
-                    value={`${usablePixels}/${totalPixels}`}
-                    note={dataset.kind === "pair" && dataset.legacyEpochs ? "Preliminary quality mask" : "Quality and spectral screening"}
-                />
-                <Metric
-                    label="Wavelength difference"
-                    value={`${deltaNm.toFixed(2)} nm`}
-                    note="Approximate · from spectral calibration"
-                />
-                <Metric
-                    label="Source instrument"
-                    value={`SPHEREx ${a.detector}`}
-                    note="Near-infrared detector"
-                />
-            </section>
-
-            <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-                <article ref={viewer} className="scroll-mt-4 overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#0c1b2e]/95 shadow-2xl shadow-black/30">
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
+            <section className="observatory-panel grid xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
+                <article ref={viewer} className="min-w-0 scroll-mt-4 rounded-t-2xl border-t border-iris/75 xl:rounded-tr-none">
+                    <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 px-4 pt-4 sm:px-6 sm:pt-5">
                         <div>
-                            <h2 className="text-lg font-semibold">
+                            <h2 className="text-2xl font-semibold tracking-tight">
                                 {isField ? "Surrounding field over time" : "Time explorer"}
                             </h2>
-                            <p className="text-xs text-slate-400">
+                            <p className="mt-1 text-sm text-faint">
                                 {target.name} · Same sky grid at two dates
                             </p>
                         </div>
 
-                        <span className="rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-200">
+                        <span className={`mt-1.5 text-[11px] font-medium tracking-wide uppercase ${isField ? "text-infrared" : "text-iris"}`}>
                             {isField ? "Target masked" : "Exploratory comparison"}
                         </span>
                     </div>
 
-                    <div className="p-5 sm:p-7">
+                    <div className="p-4 sm:px-6 sm:pb-6">
                         <div role="group" aria-label="Observation playback and dates" className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
                             <button ref={blinkButton} type="button" onClick={() => setPlaying((value) => !value)}
-                                className="col-span-2 min-h-11 rounded-lg bg-cyan-300 px-4 py-2.5 text-sm font-semibold text-slate-950 hover:bg-cyan-200 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-cyan-200">
+                                className="observatory-action col-span-2 px-4 py-2.5 text-sm">
                                 {playing ? "Ⅱ Pause blink" : "▶ Play blink"}
                             </button>
                             <button type="button" aria-label={`Earlier image, ${dateA}`} aria-pressed={blend === 0}
                                 onClick={() => showBlend(0)} className={dateButtonClass}>
-                                <span className="block text-xs text-slate-300">Earlier</span>
-                                <time dateTime={dateA} className="tabular-nums">{dateA}</time>
+                                <span className="block text-xs text-muted">Earlier</span>
+                                <time dateTime={dateA} className="font-mono text-xs tabular-nums">{dateA}</time>
                             </button>
                             <button type="button" aria-label={`Later image, ${dateB}`} aria-pressed={blend === 100}
                                 onClick={() => showBlend(100)} className={dateButtonClass}>
-                                <span className="block text-xs text-slate-300">Later</span>
-                                <time dateTime={dateB} className="tabular-nums">{dateB}</time>
+                                <span className="block text-xs text-muted">Later</span>
+                                <time dateTime={dateB} className="font-mono text-xs tabular-nums">{dateB}</time>
                             </button>
                         </div>
-                        <p className="mt-2 text-xs leading-5 text-slate-300">Play blink alternates the exposures. Choose a date to pause.</p>
+                        <p className="mt-2 text-xs leading-5 text-muted">Play blink alternates the exposures. Choose a date to pause.</p>
 
-                        <figure className="mx-auto mt-4 max-w-[490px]">
-                            <p className="mb-2 text-xs font-semibold text-slate-200">{displayedEpoch}</p>
-                            <div className="relative overflow-hidden rounded-xl border border-white/10 bg-[#0a1728] p-2">
+                        <figure className="observatory-image-width mx-auto mt-4">
+                            <p className="mb-2 font-mono text-xs text-iris">{displayedEpoch}</p>
+                            <div className="observatory-frame relative overflow-hidden rounded-xl border border-line bg-background p-2">
                                 <SkyCanvas
                                     values={data.image_a}
                                     shape={data.shape}
@@ -416,22 +393,22 @@ function PairViewer({ data, epochs, dataset, target, guideRequest }: {
                                     </div>
                                 )}
                             </div>
-                            <figcaption className="mt-2 text-xs leading-5 text-slate-300">
+                            <figcaption className="mt-3 text-xs leading-5 text-muted">
                                 <p>In this false-color view, lighter pixels show stronger infrared signal on a shared display scale.
                                     Dark navy shows masked pixels or gaps in shared coverage.</p>
-                                <p className="mt-1 text-amber-200">Confirming a detection, motion, or a change in brightness requires calibrated measurements.</p>
+                                <p className="mt-1 text-infrared">Confirming a detection, motion, or a change in brightness requires calibrated measurements.</p>
                             </figcaption>
                         </figure>
 
                         {hasPrediction && (
-                            <label className="mt-4 flex items-start gap-2 text-xs leading-5 text-slate-300">
-                                <input type="checkbox" className="mt-0.5 accent-cyan-300" checked={showPrediction}
+                            <label className="observatory-image-width mx-auto mt-3 flex items-start gap-2 text-xs leading-5 text-muted">
+                                <input type="checkbox" className="mt-0.5 accent-interactive" checked={showPrediction}
                                     onChange={(event) => setShowPrediction(event.target.checked)} />
                                 Show predicted positions from astrometry (amber earlier, cyan later).
                             </label>
                         )}
-                        <div className="mt-6">
-                            <div className="mb-2 flex justify-between gap-2 text-xs text-slate-400">
+                        <div className="observatory-image-width mx-auto mt-4 border-t border-line/80 pt-3">
+                            <div className="mb-1 flex justify-between gap-2 font-mono text-xs text-faint">
                                 <span>{labelA}</span>
                                 <span>{labelB}</span>
                             </div>
@@ -444,56 +421,63 @@ function PairViewer({ data, epochs, dataset, target, guideRequest }: {
                                 max="100"
                                 value={blend}
                                 onChange={(event) => showBlend(Number(event.target.value))}
-                                className="w-full accent-cyan-300"
+                                className="h-6 w-full accent-interactive"
                             />
 
-                            <p className="mt-3 text-xs leading-5 text-slate-400">
+                            <p className="mt-2 text-xs leading-5 text-faint">
                                 Drag the slider or use the arrow keys to blend the two exposures.
                             </p>
                         </div>
                     </div>
                 </article>
 
-                <div className="space-y-5">
-                    <div className="rounded-2xl border border-white/10 bg-[#0c1b2e]/95 p-5 sm:p-6">
-                        <h2 className="mb-5 text-lg font-semibold">
+                <div className="min-w-0 divide-y divide-line/80 rounded-b-2xl border-t border-line/80 bg-recess/55 xl:rounded-bl-none xl:rounded-tr-2xl xl:border-s xl:border-t-0">
+                    <section aria-label="Observation metrics" className="grid grid-cols-2 gap-x-3 gap-y-4 p-4 sm:p-5">
+                        <Metric label="Common sky positions" value={`${data.overlap_pixels}/${totalPixels}`} note="WCS overlap" />
+                        <Metric label="Usable samples" value={`${usablePixels}/${totalPixels}`}
+                            note={dataset.kind === "pair" && dataset.legacyEpochs ? "Preliminary quality mask" : "Quality and spectral screening"} />
+                        <Metric label="Wavelength difference" value={`${deltaNm.toFixed(2)} nm`} note="Approximate · from spectral calibration" />
+                        <Metric label="Source instrument" value={`SPHEREx ${a.detector}`} note="Near-infrared detector" />
+                    </section>
+                    <div className="p-4 sm:p-5">
+                        <h2 className="mb-3 text-base font-semibold tracking-tight">
                             Observation archive
                         </h2>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-3 sm:gap-4">
                             <ObservationCard label="Earlier" epoch={a} values={data.image_a} data={data} />
                             <ObservationCard label="Later" epoch={b} values={data.image_b} data={data} />
                         </div>
 
-                        <div className="mt-5 border-t border-white/10 pt-4 text-sm text-slate-300">
+                        <div className="mt-4 border-t border-line/80 pt-3 text-xs text-muted">
                             <p>
                                 Field center:{" "}
-                                <span className="font-mono text-xs text-cyan-200">
+                                <span className="font-mono text-xs text-iris">
                                     RA {target.ra}°
                                 </span>
                             </p>
                             <p className="mt-1">
                                 Declination:{" "}
-                                <span className="font-mono text-xs text-cyan-200">
+                                <span className="font-mono text-xs text-iris">
                                     {target.dec}°
                                 </span>
                             </p>
                             <p className="mt-1">
                                 Grid:{" "}
-                                <span className="text-slate-100">
+                                <span className="text-foreground">
                                     {data.shape[1]} × {data.shape[0]} pixels
                                 </span>
                             </p>
                         </div>
                     </div>
 
-                    <div className="rounded-2xl border border-amber-400/25 bg-amber-300/[0.06] p-5 sm:p-6">
-                        <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-200">
+                    <div className="bg-infrared/5 p-4 sm:p-5">
+                        <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-infrared">
                             <span aria-hidden="true">⚠</span>
                             Scientific interpretation
                         </div>
 
-                        <p className="text-sm leading-6 text-slate-300">
+                        <p className="text-sm leading-6 text-muted">
                             The effective wavelengths at the sampled positions are about
                             {" "}{deltaNm.toFixed(2)} nm apart ({bandwidthPercent}% of the
                             narrower {narrowerBandwidth.toFixed(2)} nm nominal bandwidth).
@@ -501,28 +485,28 @@ function PairViewer({ data, epochs, dataset, target, guideRequest }: {
                             calibration, and background may contribute to visible differences.
                         </p>
                         {isField && (
-                            <p className="mt-3 text-sm leading-6 text-amber-200">
+                            <p className="mt-3 text-sm leading-6 text-infrared">
                                 Both frames mask flagged pixels and all samples within {data.field_mask_radius_arcsec}″
                                 of either predicted position. The rings mark the excluded target locations.
                             </p>
                         )}
                         {data.warnings?.map((warning) => (
-                            <p key={warning} className="mt-3 text-sm leading-6 text-amber-200">{warning}</p>
+                            <p key={warning} className="mt-3 text-sm leading-6 text-infrared">{warning}</p>
                         ))}
                         {target.id === "wise-0855" && (
-                            <p className="mt-3 text-sm leading-6 text-amber-200">
+                            <p className="mt-3 text-sm leading-6 text-infrared">
                                 WISE 0855 is very faint. These cutouts show the field at its predicted positions.
                                 Confirming the source would require separate photometry.
                             </p>
                         )}
                     </div>
 
-                    <div className="rounded-2xl border border-white/10 bg-[#0c1b2e]/95 p-5 sm:p-6">
-                        <h2 className="mb-3 text-lg font-semibold">
+                    <div className="p-4 sm:p-5">
+                        <h2 className="mb-2 text-base font-semibold tracking-tight">
                             Data &amp; reproducibility
                         </h2>
 
-                        <p className="mb-4 text-sm leading-6 text-slate-300">
+                        <p className="mb-3 text-sm leading-6 text-muted">
                             The display uses real SPHEREx Level 2 FITS
                             image cutouts accessed through NASA/IPAC-IRSA
                             and processed locally with Astropy. This is
@@ -530,13 +514,13 @@ function PairViewer({ data, epochs, dataset, target, guideRequest }: {
                             NASA application.
                         </p>
                         {data.method && (
-                            <p className="mb-4 text-sm leading-6 text-slate-300">{data.method}</p>
+                            <p className="mb-3 text-sm leading-6 text-muted">{data.method}</p>
                         )}
 
                         <div className="flex flex-col gap-2 text-sm">
                             {[a, b].map((epoch) => (
                                 <a key={epoch.id} href={epoch.source} target="_blank" rel="noreferrer"
-                                    className="text-cyan-300 underline-offset-4 hover:underline">
+                                    className={linkClass}>
                                     Original {epoch.date_utc.slice(0, 10)} {epoch.release} FITS ↗
                                 </a>
                             ))}
@@ -544,7 +528,7 @@ function PairViewer({ data, epochs, dataset, target, guideRequest }: {
                                 href={irsaSearchUrl(target)}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="text-cyan-300 underline-offset-4 hover:underline"
+                                className={linkClass}
                             >
                                 Search IRSA around this position ↗
                             </a>
@@ -554,7 +538,7 @@ function PairViewer({ data, epochs, dataset, target, guideRequest }: {
                                 href="https://github.com/guillermoguevara887/spherex-sky-explorer"
                                 target="_blank"
                                 rel="noreferrer"
-                                className="text-cyan-300 underline-offset-4 hover:underline"
+                                className={linkClass}
                             >
                                 Scientific pipeline source code ↗
                             </a>
@@ -562,7 +546,7 @@ function PairViewer({ data, epochs, dataset, target, guideRequest }: {
                                 href={dataset.path}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="text-cyan-300 underline-offset-4 hover:underline"
+                                className={linkClass}
                             >
                                 View processed observation JSON ↗
                             </a>
@@ -571,7 +555,7 @@ function PairViewer({ data, epochs, dataset, target, guideRequest }: {
                 </div>
             </section>
 
-            <div className="mt-7 flex flex-col justify-between gap-2 border-t border-white/10 pt-5 text-xs text-slate-500 sm:flex-row">
+            <div className="mt-4 flex flex-col justify-between gap-2 border-t border-line/70 pt-3 text-xs text-faint sm:flex-row">
                 <span>
                     SPHEREx Sky Explorer · NASA Space Apps Challenge 2026
                 </span>
@@ -593,12 +577,12 @@ function Metric({
     note: string;
 }) {
     return (
-        <div className="rounded-xl border border-white/10 bg-[#0c1b2e]/90 p-4 sm:p-5">
-            <p className="text-xs text-slate-400">{label}</p>
-            <p className="mt-2 text-xl font-semibold tracking-tight text-white sm:text-2xl">
+        <div className="min-w-0">
+            <p className="text-xs text-muted">{label}</p>
+            <p className="mt-0.5 font-mono text-lg font-semibold tracking-tight text-iris tabular-nums sm:text-xl">
                 {value}
             </p>
-            <p className="mt-1 text-xs text-slate-500">{note}</p>
+            <p className="text-xs text-faint">{note}</p>
         </div>
     );
 }
@@ -616,10 +600,10 @@ function ObservationCard({
 }) {
     return (
         <div className="min-w-0">
-            <p className="text-xs font-semibold text-cyan-200">
+            <p className="text-xs font-medium text-iris">
                 {label} · <time dateTime={epoch.date_utc.slice(0, 10)}>{epoch.date_utc.slice(0, 10)}</time> UTC
             </p>
-            <p className="mb-2 text-xs text-slate-300">
+            <p className="mb-2 text-xs text-muted">
                 {epoch.release} · {epoch.detector}
             </p>
 
@@ -631,15 +615,15 @@ function ObservationCard({
                 name={`SPHEREx observation ${epoch.date_utc.slice(0, 10)}`}
             />
 
-            <p className="mt-2 break-all font-mono text-[10px] leading-5 text-slate-400">
+            <p className="mt-2 break-all font-mono text-[10px] leading-5 text-faint">
                 {epoch.id}
             </p>
-            <p className="mt-1 text-xs text-slate-200">
+            <p className="mt-1 text-xs text-foreground">
                 λ ≈ {epoch.wavelength_um.toFixed(6)} µm<br />
                 Width ≈ {epoch.bandwidth_nm.toFixed(2)} nm
             </p>
             {epoch.target_position && (
-                <p className="mt-1 break-words font-mono text-[10px] leading-4 text-slate-300">
+                <p className="mt-1 break-words font-mono text-[10px] leading-4 text-muted">
                     Predicted RA {epoch.target_position.ra.toFixed(6)}°<br />
                     Dec {epoch.target_position.dec.toFixed(6)}°
                 </p>
