@@ -17,7 +17,7 @@ import ssl
 import time
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 
 import certifi
@@ -48,7 +48,7 @@ BAD_MASK = sum(1 << bit for bit in BAD_BITS)
 SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 
 
-def inspect(path: Path):
+def inspect(path: Path, target=TARGET):
     """Return approximate wavelength, bandwidth and target-pixel flag status."""
     with fits.open(path, memmap=False) as hdul:
         image_hdu = hdul["IMAGE"]
@@ -59,13 +59,13 @@ def inspect(path: Path):
 
         height, width = data.shape
         spatial_wcs = WCS(image_hdu.header)
-        x, y = spatial_wcs.world_to_pixel(TARGET)
+        x, y = spatial_wcs.world_to_pixel(target)
         # WCS can return a 0-dimensional numpy array instead of a Python float.
         x = float(np.asarray(x).item())
         y = float(np.asarray(y).item())
 
         if not (np.isfinite(x) and np.isfinite(y)
-                and 0 <= x < width and 0 <= y < height):
+                and 0 <= x <= width - 1 and 0 <= y <= height - 1):
             raise ValueError(f"Target outside cutout: x={x:.3f}, y={y:.3f}")
 
         ix = min(max(int(round(x)), 0), width - 1)
@@ -88,16 +88,20 @@ def inspect(path: Path):
         return wavelength_um, bandwidth_um, flags, clean
 
 
-def download_cutout(url: str, destination: Path):
+def download_cutout(
+    url: str, destination: Path, *, ra=RA_DEG, dec=DEC_DEG, size="1.2arcmin"
+):
     """Download a small FITS cutout, keeping existing successful downloads."""
     if destination.is_file() and destination.stat().st_size > 0:
         return True
 
+    if urlsplit(url).netloc != "irsa.ipac.caltech.edu" or not url.startswith("https://"):
+        raise ValueError("Expected a public IRSA FITS URL")
     destination.parent.mkdir(parents=True, exist_ok=True)
     separator = "&" if "?" in url else "?"
     query = urlencode({
-        "center": f"{RA_DEG:.9f},{DEC_DEG:.10f}",
-        "size": "1.2arcmin",
+        "center": f"{ra:.9f},{dec:.10f}",
+        "size": size,
     })
     cutout_url = url + separator + query
     partial = destination.with_name(destination.name + ".part")
@@ -108,9 +112,13 @@ def download_cutout(url: str, destination: Path):
                 cutout_url,
                 headers={"User-Agent": "SPHEREx-Sky-Explorer/0.1"},
             )
-            with urlopen(request, timeout=90, context=SSL_CONTEXT) as response:
+            with urlopen(request, timeout=20, context=SSL_CONTEXT) as response:
+                total = 0
                 with partial.open("wb") as f:
                     while chunk := response.read(1024 * 1024):
+                        total += len(chunk)
+                        if total > 8 * 1024 * 1024:
+                            raise OSError("Cutout exceeded the 8 MiB limit")
                         f.write(chunk)
             if partial.stat().st_size == 0:
                 raise OSError("Empty download")

@@ -4,6 +4,8 @@ No descarga archivos FITS ni valida la equivalencia de canales espectrales.
 Ejecutar: python pipeline/query_irsa.py
 """
 
+import argparse
+from hashlib import sha256
 import json
 import math
 import ssl
@@ -88,15 +90,19 @@ def parse_record(row, collection):
     }
 
 
-def fetch_collection(collection):
+def fetch_collection(collection, ra, dec, radius_arcsec):
     """Consulta IRSA; si falla, reutiliza una caché de la misma posición."""
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    cache_path = CACHE_DIR / f"{collection}_metadata.json"
-    signature = {"ra": RA_DEG, "dec": DEC_DEG, "radius_arcsec": RADIUS_ARCSEC}
+    signature = {"ra": ra, "dec": dec, "radius_arcsec": radius_arcsec}
+    if (ra, dec, radius_arcsec) == (RA_DEG, DEC_DEG, RADIUS_ARCSEC):
+        cache_path = CACHE_DIR / f"{collection}_metadata.json"
+    else:
+        key = sha256(json.dumps(signature, sort_keys=True).encode()).hexdigest()[:16]
+        cache_path = CACHE_DIR / f"{collection}_{key}_metadata.json"
 
     # SIA2 utiliza grados; conservar los decimales evita el redondeo no deseado.
-    radius_deg = RADIUS_ARCSEC / 3600.0
-    pos = f"CIRCLE {RA_DEG:.9f} {DEC_DEG:.10f} {radius_deg:.15f}"
+    radius_deg = radius_arcsec / 3600.0
+    pos = f"CIRCLE {ra:.9f} {dec:.10f} {radius_deg:.15f}"
     query_url = SIA_URL + "?" + urlencode({"POS": pos, "COLLECTION": collection})
 
     for attempt in range(1, 3):
@@ -104,7 +110,7 @@ def fetch_collection(collection):
             request = Request(
                 query_url, headers={"User-Agent": "SPHEREx-Sky-Explorer/0.1"}
             )
-            with urlopen(request, timeout=30, context=SSL_CONTEXT) as response:
+            with urlopen(request, timeout=15, context=SSL_CONTEXT) as response:
                 raw = response.read()
 
             table = parse_single_table(BytesIO(raw)).to_table(use_names_over_ids=True)
@@ -231,13 +237,27 @@ def show_pairs(records):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--position", nargs=2, type=float, metavar=("RA", "DEC"),
+                        default=(RA_DEG, DEC_DEG), help="ICRS position in decimal degrees")
+    parser.add_argument("--radius-arcsec", type=float, default=RADIUS_ARCSEC)
+    parser.add_argument("--collection", action="append", choices=COLLECTIONS,
+                        help="Query one collection. Repeat to select both (default).")
+    args = parser.parse_args()
+    ra, dec = args.position
+    if not (0 <= ra <= 360 and -90 <= dec <= 90):
+        parser.error("RA must be in [0, 360] and Dec in [-90, 90]")
+    if not (0 < args.radius_arcsec <= 120):
+        parser.error("Radius must be greater than 0 and at most 120 arcsec")
+    ra %= 360
+
     print("SPHEREx Sky Explorer — consulta de metadatos SIA2")
-    print(f"RA={RA_DEG:.9f}°, Dec={DEC_DEG:.10f}°, radio={RADIUS_ARCSEC} arcsec")
+    print(f"RA={ra:.9f}°, Dec={dec:.10f}°, radio={args.radius_arcsec} arcsec")
 
     all_records = []
-    for collection in COLLECTIONS:
+    for collection in dict.fromkeys(args.collection or COLLECTIONS):
         print(f"\nConsultando {collection}...")
-        records = fetch_collection(collection)
+        records = fetch_collection(collection, ra, dec, args.radius_arcsec)
         if records:
             summarize(records)
             all_records.extend(records)

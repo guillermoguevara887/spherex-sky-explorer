@@ -1,10 +1,11 @@
 
-"""Inspect two downloaded SPHEREx FITS cutouts.
+"""Inspect coverage, flags and WCS-WAVE in downloaded SPHEREx FITS cutouts.
 
 Run from project root:
     python pipeline/inspect_cutouts.py
 """
 
+import argparse
 from pathlib import Path
 
 import numpy as np
@@ -22,20 +23,12 @@ CUTOUT_DIR = (
 
 FILES = ("d1_2025.fits", "d1_2026.fits")
 
-TARGET = SkyCoord(
-    ra=304.693508808 * u.deg,
-    dec=42.4436872991 * u.deg,
-    frame="icrs",
-)
+FIRST_LIGHT = (304.693508808, 42.4436872991)
 
 
-def inspect_file(filename):
+def inspect_file(path, target):
     """Inspect image, flags, spatial WCS and spectral WCS."""
-
-    path = CUTOUT_DIR / filename
-
-    print(f"\n--- {filename} ---")
-
+    print(f"\n--- {path.name} ---")
     if not path.is_file():
         print(f"FALTA EL ARCHIVO: {path}")
         return None
@@ -66,7 +59,7 @@ def inspect_file(filename):
         # Convert sky coordinates to image pixel coordinates.
         spatial_wcs = WCS(image.header)
 
-        x, y = spatial_wcs.world_to_pixel(TARGET)
+        x, y = spatial_wcs.world_to_pixel(target)
 
         inside = (
             np.isfinite(x)
@@ -129,18 +122,24 @@ def inspect_file(filename):
 
 
 def main():
-    """Inspect and compare both observing epochs."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--position", nargs=2, type=float, metavar=("RA", "DEC"),
+                        default=FIRST_LIGHT, help="ICRS position in decimal degrees")
+    parser.add_argument("fits", nargs="*", type=Path,
+                        help="FITS paths. Defaults to the two original First Light cutouts.")
+    args = parser.parse_args()
+    ra, dec = args.position
+    if not (0 <= ra <= 360 and -90 <= dec <= 90):
+        parser.error("RA must be in [0, 360] and Dec in [-90, 90]")
+    target = SkyCoord(ra=(ra % 360) * u.deg, dec=dec * u.deg, frame="icrs")
+    paths = args.fits or [CUTOUT_DIR / filename for filename in FILES]
 
     print("SPHEREx Sky Explorer")
     print("FITS Scientific Inspection")
-
-    measured = {}
-
-    for filename in FILES:
-        measured[filename] = inspect_file(filename)
-
-    a = measured.get("d1_2025.fits")
-    b = measured.get("d1_2026.fits")
+    measured = [inspect_file(path, target) for path in paths]
+    if len(measured) != 2:
+        return
+    a, b = measured
 
     print("\n--- COMPARACIÓN ESPECTRAL ---")
 
